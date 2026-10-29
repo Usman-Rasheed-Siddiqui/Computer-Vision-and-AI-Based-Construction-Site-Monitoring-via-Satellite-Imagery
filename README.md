@@ -1,0 +1,2 @@
+# Computer Vision and AI-Based Construction Site Monitoring via Satellite Imagery
+The Computer Vision and AI-Based Construction Site Monitoring via Satellite Imagery system monitors construction progress by detecting changes in satellite images using computer vision and artificial intelligence. It retrieves Sentinel-2 imagery through Google Earth Engine, compares images captured at different times, and highlights changed areas. The system provides detected changes, estimated affected areas, AI-generated insights, and downloadable reports through a user-friendly dashboard.
