@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="orbitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="satGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#ef4444" />
+    </linearGradient>
+  </defs>
+  <!-- Earth / Base Circle -->
+  <circle cx="50" cy="50" r="28" fill="#1e293b" stroke="url(#orbitGrad)" stroke-width="2.5" />
+  <!-- Grid lines -->
+  <path d="M22 50h56M50 22v56M28 36c14 4 30 4 44 0M28 64c14-4 30-4 44 0" stroke="#38bdf8" stroke-width="1.2" stroke-opacity="0.5" stroke-dasharray="2 3" />
+  <!-- Orbit Path -->
+  <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4 4" transform="rotate(-28 50 50)" />
+  <!-- Satellite -->
+  <g transform="translate(76, 26) rotate(35)">
+    <rect x="-6" y="-4" width="12" height="8" rx="1.5" fill="url(#satGrad)" />
+    <line x1="-12" y1="0" x2="-6" y2="0" stroke="#94a3b8" stroke-width="1.5" />
+    <line x1="6" y1="0" x2="12" y2="0" stroke="#94a3b8" stroke-width="1.5" />
+    <rect x="-17" y="-5" width="5" height="10" rx="1" fill="#38bdf8" />
+    <rect x="12" y="-5" width="5" height="10" rx="1" fill="#38bdf8" />
+  </g>
+  <!-- Construction Beacon Ping -->
+  <circle cx="44" cy="46" r="3" fill="#10b981" />
+  <circle cx="44" cy="46" r="6" stroke="#10b981" stroke-width="1" opacity="0.6" />
+</svg>

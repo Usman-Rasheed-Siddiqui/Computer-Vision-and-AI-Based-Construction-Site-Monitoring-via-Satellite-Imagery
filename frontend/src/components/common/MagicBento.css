@@ -1,0 +1,9 @@
+.magic-bento {
+  --mb-radius: 20px;
+}
+
+.magic-bento__card {
+  position: relative;
+  isolation: isolate;
+  background-color: #0b1120;
+}
