@@ -1,0 +1,5 @@
+.env
+backend/.venv/
+backend/backend/__pycache__/
+backend/monitoring/__pycache__/
+backend/monitoring/migrations/
