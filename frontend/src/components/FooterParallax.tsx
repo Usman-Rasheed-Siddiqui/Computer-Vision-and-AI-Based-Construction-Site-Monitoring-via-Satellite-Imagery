@@ -107,16 +107,6 @@ export default function FooterParallax() {
           </motion.div>
         </div>
 
-        <motion.div 
-          style={{ y: yTruck }}
-          className="absolute inset-x-0 bottom-0 h-full pointer-events-none z-20"
-        >
-          <img 
-            src="/images/footer_img.png" 
-            alt="Construction Transport"
-            className="w-full h-full object-contain object-bottom origin-bottom scale-[1.5] sm:scale-110 md:scale-[2.0] lg:scale-105"
-          />
-        </motion.div>
       </section>
     </div>
   );

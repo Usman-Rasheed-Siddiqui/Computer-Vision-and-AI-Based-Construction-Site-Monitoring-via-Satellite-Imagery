@@ -1,10 +1,16 @@
 
 from rest_framework import serializers
+from django.db import transaction
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+import uuid
+
 from .models import (
     ConstructionSites,
     SiteAccessRequest,
     UserSite,
     ProgressLogs,
+    Users
 )
 
 
@@ -88,3 +94,67 @@ class ProgressLogSerializer(serializers.ModelSerializer):
             "satellite_image_date", "processed_at",
         ]
         read_only_fields = fields
+
+class RegisterSerializer(serializers.Serializer):
+
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8
+    )
+
+    def validate_email(self, value):
+        value = value.strip().lower()
+
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
+
+        if Users.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
+
+        if User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError(
+                "This username is already taken."
+            )
+
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    @transaction.atomic
+    def create(self, validated_data):
+
+        first_name = validated_data["first_name"].strip()
+        last_name = validated_data["last_name"].strip()
+        email = validated_data["email"]
+        password = validated_data["password"]
+
+        # Combine names for the application profile
+        full_name = f"{first_name} {last_name}".strip()
+
+        # 1. Create Django authentication account
+        django_user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+        # 2. Create corresponding application profile
+        Users.objects.create(
+            user_id=uuid.uuid4(),
+            email=email,
+            password_hash=django_user.password,
+            full_name=full_name
+        )
+
+        return django_user

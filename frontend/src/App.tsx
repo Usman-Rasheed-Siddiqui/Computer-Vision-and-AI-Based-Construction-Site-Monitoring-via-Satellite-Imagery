@@ -1,9 +1,14 @@
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import AboutSection from './components/AboutSection';
 import FeaturesSection from './components/FeaturesSection';
 import FooterParallax from './components/FooterParallax';
+import SignIn from './pages/SignIn';
+import SignUp from './pages/SignUp';
 
-export default function App() {
+function LandingPage() {
+  const navigate = useNavigate();
+
   return (
     <main className="relative w-full text-white bg-black">
       <section className="relative h-screen overflow-hidden mb-[-25px]">
@@ -39,7 +44,10 @@ export default function App() {
                 <span className="text-slate-200 text-sm font-medium md:hidden">
                   Satellite progress, tracked.
                 </span>
-                <button className="bg-emerald-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-emerald-400 transition-colors shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                <button 
+                  onClick={() => navigate('/signin')}
+                  className="bg-emerald-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-emerald-400 transition-colors shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer"
+                >
                   Start for free
                 </button>
               </div>
@@ -52,5 +60,17 @@ export default function App() {
       <FeaturesSection />
       <FooterParallax />
     </main>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="/signup" element={<SignUp />} />
+      </Routes>
+    </Router>
   );
 }

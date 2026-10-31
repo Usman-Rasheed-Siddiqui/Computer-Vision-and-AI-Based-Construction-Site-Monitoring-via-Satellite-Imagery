@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const features = [
   {
@@ -25,6 +26,7 @@ export default function FeaturesSection() {
   const [activeId, setActiveId] = useState(features[0].id);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     const activeObserver = new IntersectionObserver((entries) => {
@@ -104,7 +106,9 @@ export default function FeaturesSection() {
             <p className="text-white text-sm font-medium mb-4">
               No physical sensors. No complicated systems. Just your site, automatically sorted.
             </p>
-            <button className="bg-white text-black text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-white/90 transition-colors w-full">
+            <button
+            onClick={() => navigate('/signin')} 
+            className="bg-white text-black text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-white/90 transition-colors w-full">
               Start for free
             </button>
           </div>
