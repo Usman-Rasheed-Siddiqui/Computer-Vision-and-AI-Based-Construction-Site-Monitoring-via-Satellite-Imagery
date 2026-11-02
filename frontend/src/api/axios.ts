@@ -17,4 +17,19 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// If the server returns 401 (token expired/invalid), clear the session and
+// redirect to sign-in so the user is never stuck on a broken state.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user_username')
+      window.location.href = '/signin'
+    }
+    return Promise.reject(error)
+  },
+)
+
 export default api

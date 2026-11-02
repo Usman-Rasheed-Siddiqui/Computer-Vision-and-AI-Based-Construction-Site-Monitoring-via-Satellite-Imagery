@@ -5,6 +5,12 @@ import FeaturesSection from './components/FeaturesSection';
 import FooterParallax from './components/FooterParallax';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
+import Hero from './pages/Hero';
+import ConstructionSite from './pages/ConstructionSite';
+import MemberRequest from './pages/MemberRequest';
+import PrivateRoute from './components/PrivateRoute';
+import PublicRoute from './components/PublicRoute';
+import RegisterSitePage from './pages/RegisterSite';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -67,9 +73,22 @@ export default function App() {
   return (
     <Router>
       <Routes>
+        {/* Landing page — always public */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/signin" element={<SignIn />} />
-        <Route path="/signup" element={<SignUp />} />
+
+        {/* Public-only routes: redirect to /dashboard if already logged in */}
+        <Route element={<PublicRoute />}>
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
+        </Route>
+
+        {/* Protected routes: redirect to /signin if not logged in */}
+        <Route element={<PrivateRoute />}>
+          <Route path="/hero" element={<Hero />} />
+          <Route path="/construction-site" element={<ConstructionSite />} />
+          <Route path="/member-request" element={<MemberRequest />} />
+          <Route path="/construction-site/register" element={<RegisterSitePage />} />
+        </Route>
       </Routes>
     </Router>
   );

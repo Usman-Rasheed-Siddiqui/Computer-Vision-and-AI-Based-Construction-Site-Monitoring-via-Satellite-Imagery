@@ -47,3 +47,19 @@ export interface ProgressLog {
   satellite_image_date: string
   processed_at: string | null
 }
+
+
+export interface SatellitePreviewResponse {
+  signed_url: string
+  file_path: string
+  target_date_used: string
+  info: {
+    release_date: string
+    release_id: number
+    zoom: number
+    center_mpp: number
+    size_px: [number, number]
+    tiles_fetched: number
+    missing_tiles: number
+  }
+}

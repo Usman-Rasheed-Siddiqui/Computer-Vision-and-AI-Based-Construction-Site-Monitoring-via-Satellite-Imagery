@@ -3,6 +3,10 @@ from . import views
 
 urlpatterns = [
 
+    path('sites/preview-satellite/', views.PreviewSatelliteView.as_view(), name='preview-satellite'),
+    path('sites/confirm-register/', views.ConfirmRegisterSiteView.as_view(), name='confirm-register'),
+    path('sites/discard-preview/', views.DiscardPreviewView.as_view(), name='discard-preview'),
+
     path(
         'db-check/',
         views.database_check,
@@ -44,4 +48,6 @@ urlpatterns = [
         views.decide_access_request,
         name='decide-access-request'
     ),
+
+
 ]

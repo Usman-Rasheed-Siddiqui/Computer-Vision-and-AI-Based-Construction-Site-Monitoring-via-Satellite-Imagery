@@ -4,7 +4,12 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework import generics, permissions
 from .serializers import RegisterSerializer
+from rest_framework.views import APIView
+from datetime import date
+from django.db import connection
+from monitoring.models import Users
 
+import json
 import uuid
 
 from django.db.models import Q
@@ -23,6 +28,7 @@ from .serializers import (
     ProgressLogSerializer,
 )
 
+from monitoring.image_retrieval.image_retrieval import get_image, upload_temporary_preview, supabase, BUCKET_NAME
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -248,3 +254,111 @@ class RegisterView(generics.CreateAPIView):
 
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+
+class PreviewSatelliteView(APIView):
+    permission_classes = [IsAuthenticated] # Ensures user is logged in via JWT
+
+    def post(self, request):
+        data = request.data
+        try:
+            latitude = float(data.get("latitude"))
+            longitude = float(data.get("longitude"))
+            extent_meters = int(data.get("extent_meters", 500))
+            
+            target_date = date.today().strftime("%Y-%m-%d")
+            temp_site_id = str(uuid.uuid4())
+            
+            img, info = get_image(
+                target_date=target_date,
+                lat=latitude,
+                lon=longitude,
+                extent_m=extent_meters
+            )
+            
+            file_path_relative = f"previews/{temp_site_id}_{target_date}.jpg"
+            signed_url = upload_temporary_preview(img, temp_site_id)
+            
+            return Response({
+                "signed_url": signed_url,
+                "file_path": file_path_relative,
+                "target_date_used": target_date,
+                "info": info
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("Preview Error:", str(e))
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ConfirmRegisterSiteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data
+        try:
+            site_name = data.get("site_name")
+            start_date = data.get("start_date")
+            location = data.get("location")
+            city = data.get("city")
+            country = data.get("country")
+            area = data.get("area") or None
+            is_public = data.get("is_public", False)
+            
+            coords = data.get("center_coordinates", {})
+            lat = coords.get("latitude") if isinstance(coords, dict) else data.get("latitude")
+            lng = coords.get("longitude") if isinstance(coords, dict) else data.get("longitude")
+            
+            center_coordinates_json = json.dumps({"latitude": float(lat), "longitude": float(lng)})
+            extent_meters = data.get("extent_meters", 500)
+            
+            # Retrieve the correct UUID from your custom Users table using the authenticated user's email
+            user_uuid = None
+            if request.user and request.user.is_authenticated:
+                try:
+                    # Assuming request.user.email or request.user.username matches the email in your users table
+                    db_user = Users.objects.get(email=getattr(request.user, 'email', request.user.username))
+                    user_uuid = str(db_user.user_id)
+                except Users.DoesNotExist:
+                    user_uuid = None
+
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO construction_sites 
+                    (site_name, start_date, location, city, country, area, is_public, center_coordinates, extent_meters, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::uuid)
+                    RETURNING construction_id;
+                """, [
+                    site_name, 
+                    start_date, 
+                    location, 
+                    city, 
+                    country, 
+                    area, 
+                    is_public, 
+                    center_coordinates_json, 
+                    extent_meters, 
+                    user_uuid
+                ])
+                
+                row = cursor.fetchone()
+                site_id = row[0] if row else None
+
+            return Response({"message": "Site registered successfully", "site_id": site_id}, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class DiscardPreviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        file_path = request.query_params.get("file_path")
+        if not file_path:
+            return Response({"detail": "file_path parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            supabase.storage.from_(BUCKET_NAME).remove([file_path])
+            return Response({"message": "Temporary preview discarded."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

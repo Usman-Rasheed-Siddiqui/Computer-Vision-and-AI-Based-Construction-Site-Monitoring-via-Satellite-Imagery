@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { register } from '../api/auth';
 import { Mail, Lock} from 'lucide-react';
 
 export default function SignUp() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -66,12 +68,20 @@ export default function SignUp() {
         </div>
 
         <div className="relative z-10 text-xs text-white/40">
-          © 2026 Keylight, Inc. All rights reserved.
+          漏 2026 Keylight, Inc. All rights reserved.
         </div>
       </aside>
 
       {/* Auth Form Panel (Right) */}
       <main className="flex-1 flex flex-col justify-between p-6 sm:p-12 lg:p-20 bg-white">
+        <div className="flex justify-end lg:justify-start">
+          <button
+            onClick={() => navigate("/")}
+            className="bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-emerald-400 transition-colors shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+          >
+            ← Back to home
+          </button>
+        </div>
         <div className="flex justify-end lg:hidden">
           <span className="font-bold text-lg tracking-tight">keylight.</span>
         </div>
