@@ -51,3 +51,15 @@ export const discardSatellitePreview = async (filePath: string) => {
   })
   return response.data
 }
+
+export const updateSiteMetadata = async (
+  siteId: string,
+  payload: {
+    area?: string | number
+    is_completed?: boolean
+    is_public?: boolean
+  }
+) => {
+  const response = await api.patch<{ message: string }>(`/sites/${siteId}/update/`, payload)
+  return response.data
+}

@@ -69,6 +69,15 @@ class AuthUserUserPermissions(models.Model):
         db_table = 'auth_user_user_permissions'
         unique_together = (('user', 'permission'),)
 
+class Users(models.Model):
+    user_id = models.UUIDField(primary_key=True)
+    email = models.CharField(unique=True)
+    password_hash = models.CharField()
+    full_name = models.CharField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'users'
 
 class ConstructionSites(models.Model):
     construction_id = models.UUIDField(primary_key=True)
@@ -143,11 +152,34 @@ class ProgressLogs(models.Model):
     baseline_image_filename = models.CharField(blank=True, null=True)
     latest_image_filename = models.CharField(blank=True, null=True)
     change_mask_filename = models.CharField(blank=True, null=True)
-    area_changed_sqm = models.DecimalField(max_digits=10, decimal_places=5, blank=True, null=True)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
+    area_changed_sqm = models.DecimalField(
+    max_digits=12,
+    decimal_places=5,
+    blank=True,
+    null=True
+    )
     change_percentage = models.DecimalField(max_digits=10, decimal_places=5, blank=True, null=True)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float
     status = models.CharField()
     satellite_image_date = models.DateField()
     processed_at = models.DateTimeField(blank=True, null=True)
+    requested_by = models.ForeignKey(
+        Users,
+        models.DO_NOTHING,
+        db_column="requested_by",
+        related_name="requested_progress_logs",
+        blank=True,
+        null=True
+    )
+
+    earlier_date = models.DateField(blank=True, null=True)
+    later_date = models.DateField(blank=True, null=True)
+
+    overlay_image_filename = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
 
     class Meta:
         managed = False
@@ -178,12 +210,3 @@ class UserSite(models.Model):
         db_table = 'user_site'
 
 
-class Users(models.Model):
-    user_id = models.UUIDField(primary_key=True)
-    email = models.CharField(unique=True)
-    password_hash = models.CharField()
-    full_name = models.CharField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'users'

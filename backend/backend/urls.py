@@ -8,6 +8,8 @@ from rest_framework_simplejwt.views import (
 
 from monitoring.views import RegisterView
 
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
 
@@ -34,4 +36,11 @@ urlpatterns = [
 
     # Application APIs
     path('api/', include('monitoring.urls')),
+    path("api-auth/", include("rest_framework.urls"))
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )

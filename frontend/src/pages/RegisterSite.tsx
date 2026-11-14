@@ -81,7 +81,6 @@ export default function RegisterSitePage() {
   const validateStep2 = (): boolean => {
     const lat = parseFloat(formData.latitude);
     const lng = parseFloat(formData.longitude);
-    const extent = parseInt(formData.extent_meters, 10);
 
     if (isNaN(lat) || lat < -90 || lat > 90) {
       setErrorMessage("Latitude must be a valid number between -90 and 90.");
@@ -89,10 +88,6 @@ export default function RegisterSitePage() {
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
       setErrorMessage("Longitude must be a valid number between -180 and 180.");
-      return false;
-    }
-    if (isNaN(extent) || extent < 1 || extent > 1000) {
-      setErrorMessage("Extent meters must be an integer between 1 and 1000.");
       return false;
     }
     return true;
@@ -116,7 +111,7 @@ export default function RegisterSitePage() {
       const data = await previewSatelliteImage({
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
-        extent_meters: parseInt(formData.extent_meters, 10),
+        extent_meters: 500,
       });
 
       setPreviewData(data);
@@ -146,7 +141,7 @@ export default function RegisterSitePage() {
           latitude: parseFloat(formData.latitude),
           longitude: parseFloat(formData.longitude),
         },
-        extent_meters: parseInt(formData.extent_meters, 10),
+        extent_meters: 500,
         temp_image_path: previewData?.file_path,
       });
 
@@ -281,8 +276,14 @@ export default function RegisterSitePage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs uppercase tracking-wider text-white/70 mb-2 font-medium">Extent Radius in Meters * (1 to 1000m)</label>
-                      <SmoothInput placeholder="500" value={formData.extent_meters} onChange={(e) => handleChange("extent_meters", e.target.value)} wrapperClassName="max-w-none bg-white/[0.03] border border-white/10" />
+                      <label className="block text-xs uppercase tracking-wider text-white/70 mb-2 font-medium">Extent Radius in Meters *</label>
+                      <SmoothInput 
+                        placeholder="500" 
+                        value={formData.extent_meters} 
+                        onChange={() => {}} 
+                        readOnly={true}
+                        wrapperClassName="max-w-none bg-white/[0.03] border border-white/10 opacity-60 cursor-not-allowed" 
+                      />
                     </div>
 
                     <div className="pt-2">

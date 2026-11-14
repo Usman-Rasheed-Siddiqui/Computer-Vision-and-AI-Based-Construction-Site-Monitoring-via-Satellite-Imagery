@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Activity, FileText, BarChart3, TrendingUp, Database, 
-  MapPin, Edit2, CheckCircle2, Globe2, Lock 
+  MapPin, Edit2, CheckCircle2, Globe2, Lock, ShieldAlert
 } from 'lucide-react';
 
 import api from '../api/axios';
+import { updateSiteMetadata } from '../api/sites'; // Make sure this is exported from your sites.ts
 import DashboardNav from '../components/DashboardNav';
 import MagicBento, { type MagicBentoItem } from '../components/MagicBento';
 
@@ -54,6 +55,7 @@ function SiteDetails() {
 
   const [site, setSite] = useState<ConstructionSite | null>(null);
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
+  const [isOwner, setIsOwner] = useState(false);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,13 +67,12 @@ function SiteDetails() {
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        // Fetch ALL categorized sites in one request
         const response = await api.get('sites/');
         
-        const mySites = response.data.my_sites || [];
-        const sharedSites = response.data.shared_sites || [];
+        const mySites: ConstructionSite[] = response.data.my_sites || [];
+        const sharedSites: ConstructionSite[] = response.data.shared_sites || [];
         
-        const allSites: ConstructionSite[] = [...mySites, ...sharedSites];
+        const allSites = [...mySites, ...sharedSites];
 
         const selectedSite = allSites.find(
           (item) => String(item.construction_id) === id
@@ -80,13 +81,16 @@ function SiteDetails() {
         if (selectedSite) {
           setSite(selectedSite);
           setEditedArea(selectedSite.area || '');
+          
+          // Determine ownership: if it exists in my_sites, the current user is the creator
+          const isOwnedByMe = mySites.some(item => String(item.construction_id) === id);
+          setIsOwner(isOwnedByMe);
         } else {
           setError('Site not found or you do not have access to it.');
           setLoading(false);
           return;
         }
 
-        // Fetch the progress logs for this site
         try {
           const logsResponse = await api.get(`sites/${id}/progress/`);
           const logsData = logsResponse.data.progress_logs || logsResponse.data;
@@ -109,37 +113,46 @@ function SiteDetails() {
     fetchAllData();
   }, [id]);
 
-  // --- UPDATE HANDLERS ---
+  // --- SECURE UPDATE HANDLERS ---
   const handleToggleCompletion = async () => {
-    if (!site) return;
+    if (!site || !isOwner) return;
     const newStatus = !site.is_completed;
+    
+    // Optimistic UI update
+    setSite({ ...site, is_completed: newStatus });
     try {
-      // await api.patch(`sites/${site.construction_id}/`, { is_completed: newStatus });
-      setSite({ ...site, is_completed: newStatus });
+      await updateSiteMetadata(site.construction_id, { is_completed: newStatus });
     } catch (err) {
-      console.error("Failed to update status");
+      alert("Failed to update status.");
+      setSite({ ...site, is_completed: !newStatus }); // Revert on failure
     }
   };
 
   const handleToggleVisibility = async () => {
-    if (!site) return;
+    if (!site || !isOwner) return;
     const newVisibility = !site.is_public;
+    
+    setSite({ ...site, is_public: newVisibility });
     try {
-      // await api.patch(`sites/${site.construction_id}/`, { is_public: newVisibility });
-      setSite({ ...site, is_public: newVisibility });
+      await updateSiteMetadata(site.construction_id, { is_public: newVisibility });
     } catch (err) {
-      console.error("Failed to update visibility");
+      alert("Failed to update visibility.");
+      setSite({ ...site, is_public: !newVisibility });
     }
   };
 
   const handleSaveArea = async () => {
-    if (!site) return;
+    if (!site || !isOwner) return;
+    
+    const previousArea = site.area;
+    setSite({ ...site, area: editedArea });
+    setIsEditingArea(false);
+    
     try {
-      // await api.patch(`sites/${site.construction_id}/`, { area: editedArea });
-      setSite({ ...site, area: editedArea });
-      setIsEditingArea(false);
+      await updateSiteMetadata(site.construction_id, { area: editedArea });
     } catch (err) {
-      console.error("Failed to update area");
+      alert("Failed to update area.");
+      setSite({ ...site, area: previousArea });
     }
   };
 
@@ -172,7 +185,6 @@ function SiteDetails() {
   const logDates = progressLogs.map(log => new Date(log.satellite_image_date).toLocaleDateString());
   const totalAreaChanged = areaChangedData.reduce((acc, curr) => acc + curr, 0);
 
-  // Magic Bento Cards Configuration using Lucide Icons
   const bentoItems: MagicBentoItem[] = [
     {
       id: 'bar-chart',
@@ -295,7 +307,6 @@ function SiteDetails() {
               </p>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex items-center gap-3 animate-fade-up" style={{ animationDelay: '100ms' }}>
               <button 
                 className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all cursor-pointer"
@@ -325,11 +336,11 @@ function SiteDetails() {
               </div>
             </div>
 
-            {/* Area (Editable) */}
+            {/* Area (Editable only if owner) */}
             <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl flex flex-col justify-center">
               <div className="flex justify-between items-center mb-2">
                 <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Area</div>
-                {!isEditingArea && (
+                {isOwner && !isEditingArea && (
                   <button onClick={() => setIsEditingArea(true)} className="text-sky-400 hover:text-sky-300 transition-colors" title="Edit Area">
                     <Edit2 size={14} />
                   </button>
@@ -355,39 +366,64 @@ function SiteDetails() {
               )}
             </div>
 
-            {/* Project Status (Toggle) */}
+            {/* Project Status (Toggle only if owner) */}
             <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl flex flex-col justify-center items-start">
               <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Project Status</div>
-              <button 
-                onClick={handleToggleCompletion} 
-                className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  site.is_completed 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' 
-                  : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
-                }`}
-              >
-                <CheckCircle2 size={16} />
-                {site.is_completed ? 'Completed' : 'Active'}
-              </button>
+              {isOwner ? (
+                <button 
+                  onClick={handleToggleCompletion} 
+                  className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                    site.is_completed 
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' 
+                    : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <CheckCircle2 size={16} />
+                  {site.is_completed ? 'Completed' : 'Active'}
+                </button>
+              ) : (
+                <div className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold ${
+                  site.is_completed ? 'bg-emerald-500/5 text-emerald-400/80 border border-emerald-500/10' : 'bg-slate-800/50 text-slate-400 border border-slate-700/50'
+                }`}>
+                  <CheckCircle2 size={16} />
+                  {site.is_completed ? 'Completed' : 'Active'}
+                </div>
+              )}
             </div>
 
-            {/* Visibility (Toggle) */}
+            {/* Visibility (Toggle only if owner) */}
             <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl flex flex-col justify-center items-start">
               <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Visibility</div>
-              <button 
-                onClick={handleToggleVisibility} 
-                className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  site.is_public 
-                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20' 
-                  : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
-                }`}
-              >
-                {site.is_public ? <Globe2 size={16} /> : <Lock size={16} />}
-                {site.is_public ? 'Public' : 'Private'}
-              </button>
+              {isOwner ? (
+                <button 
+                  onClick={handleToggleVisibility} 
+                  className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                    site.is_public 
+                    ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20' 
+                    : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  {site.is_public ? <Globe2 size={16} /> : <Lock size={16} />}
+                  {site.is_public ? 'Public' : 'Private'}
+                </button>
+              ) : (
+                <div className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold ${
+                  site.is_public ? 'bg-sky-500/5 text-sky-400/80 border border-sky-500/10' : 'bg-slate-800/50 text-slate-400 border border-slate-700/50'
+                }`}>
+                  {site.is_public ? <Globe2 size={16} /> : <Lock size={16} />}
+                  {site.is_public ? 'Public' : 'Private'}
+                </div>
+              )}
             </div>
 
           </div>
+
+          {!isOwner && (
+             <div className="flex items-center gap-2 mb-6 text-slate-400 text-sm bg-slate-900/40 p-3 rounded-lg border border-white/5 w-fit">
+               <ShieldAlert size={16} className="text-sky-500" />
+               You are viewing a shared site. Only the creator can modify site details.
+             </div>
+          )}
 
           {/* Magic Bento Grid */}
           <div className="w-full animate-fade-up" style={{ animationDelay: '200ms' }}>
@@ -398,7 +434,7 @@ function SiteDetails() {
               gap={16}
               radius={20}
               theme="dark"
-              glowColor="#38bdf8" // Neon Sky Blue subtle glow
+              glowColor="#38bdf8"
               enableBorderGlow={true}
               enableSpotlight={true}
               spotlightRadius={300}

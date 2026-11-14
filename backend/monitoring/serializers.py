@@ -12,7 +12,7 @@ from .models import (
     ProgressLogs,
     Users
 )
-
+from django.utils import timezone
 
 class ConstructionSiteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -87,11 +87,24 @@ class ProgressLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProgressLogs
         fields = [
-            "progress_id", "construction",
-            "baseline_image_filename", "latest_image_filename",
-            "change_mask_filename", "area_changed_sqm",
-            "change_percentage", "status",
-            "satellite_image_date", "processed_at",
+            "progress_id",
+            "construction",
+            "requested_by",
+
+            "earlier_date",
+            "later_date",
+
+            "baseline_image_filename",
+            "latest_image_filename",
+            "overlay_image_filename",
+            "change_mask_filename",
+
+            "area_changed_sqm",
+            "change_percentage",
+
+            "status",
+            "satellite_image_date",
+            "processed_at",
         ]
         read_only_fields = fields
 
@@ -158,3 +171,69 @@ class RegisterSerializer(serializers.Serializer):
         )
 
         return django_user
+
+
+class ChangeDetectionTestSerializer(serializers.Serializer):
+    image_a = serializers.ImageField(
+        required=True,
+        allow_empty_file=False
+    )
+
+    image_b = serializers.ImageField(
+        required=True,
+        allow_empty_file=False
+    )
+
+    threshold = serializers.FloatField(
+        required=False,
+        default=0.10,
+        min_value=0.0,
+        max_value=1.0
+    )
+
+class ProgressAnalysisRequestSerializer(serializers.Serializer):
+
+    analysis_mode = serializers.ChoiceField(
+        choices=["baseline", "custom"]
+    )
+
+    earlier_date = serializers.DateField(
+        required=False
+    )
+
+    later_date = serializers.DateField(
+        required=False,
+        default=timezone.localdate
+    )
+
+    def validate(self, attrs):
+
+        mode = attrs["analysis_mode"]
+        later_date = attrs["later_date"]
+
+        if mode == "custom":
+            if not attrs.get("earlier_date"):
+                raise serializers.ValidationError({
+                    "earlier_date": "This field is required for custom analysis."
+                })
+
+            earlier_date = attrs["earlier_date"]
+
+            if earlier_date >= later_date:
+                raise serializers.ValidationError(
+                    "earlier_date must be before later_date."
+                )
+
+        today = timezone.localdate()
+
+        if later_date > today:
+            raise serializers.ValidationError(
+                "later_date cannot be in the future."
+            )
+
+        if mode == "custom" and attrs["earlier_date"] > today:
+            raise serializers.ValidationError(
+                "earlier_date cannot be in the future."
+            )
+
+        return attrs

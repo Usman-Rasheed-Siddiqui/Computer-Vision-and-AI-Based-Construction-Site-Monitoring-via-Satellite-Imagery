@@ -49,5 +49,22 @@ urlpatterns = [
         name='decide-access-request'
     ),
 
+    path(
+            'sites/<uuid:site_id>/update/',
+            views.update_site_metadata,
+            name='update-site-metadata'
+        ),
+
+    path(
+        "change-detection/test/",
+        views.TestChangeDetectionView.as_view(),
+        name="test-change-detection"
+    ),
+
+    path(
+        "sites/<uuid:site_id>/progress/analyze/",
+        views.SiteProgressAnalysisView.as_view(),
+        name="site-progress-analyze"
+    ),
 
 ]
