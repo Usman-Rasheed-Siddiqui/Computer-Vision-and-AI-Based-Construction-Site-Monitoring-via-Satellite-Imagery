@@ -54,10 +54,12 @@ export default function FooterParallax() {
             <div className="p-8 md:p-12 flex flex-col md:flex-row justify-between gap-12">
               
               <div className="flex items-center gap-4">
-                <div className="bg-blue-600 w-10 h-10 md:w-12 md:h-12 rounded-lg shadow-inner p-2 flex-shrink-0">
-                  <svg viewBox="0 0 256 256" className="w-full h-full fill-white">
-                    <path d="M 228 0 C 172.772 0 128 44.772 128 100 L 128 0 L 0 0 L 0 28 C 0 83.228 44.772 128 100 128 L 0 128 L 0 256 L 28 256 C 83.228 256 128 211.228 128 156 L 128 256 L 256 256 L 256 228 C 256 172.772 211.228 128 156 128 L 256 128 L 256 0 Z" />
-                  </svg>
+                <div className="bg-transparent w-10 h-10 md:w-12 md:h-12 rounded-lg flex-shrink-0 flex items-center justify-center">
+                  <img
+                    src="/logo.png"
+                    alt="Construction Monitoring Logo"
+                    className="w-full h-full scale-125 object-contain"
+                  />
                 </div>
                 <span className="text-gray-900 text-2xl md:text-3xl font-bold tracking-tighter">
                   SIGHTLINE

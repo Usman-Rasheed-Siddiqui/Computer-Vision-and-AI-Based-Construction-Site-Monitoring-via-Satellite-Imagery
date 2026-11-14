@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from datetime import date
 from django.db import connection
 from monitoring.models import Users
+from django.db import transaction
 
 import json
 import uuid
@@ -72,6 +73,26 @@ class SiteListCreateView(generics.ListCreateAPIView):
             Q(created_by=profile) |
             Q(usersite__user=profile)
         ).distinct().order_by("-created_at")
+
+    # --- ADD THIS NEW METHOD TO SPLIT THE SITES ---
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        profile = get_profile_user(request)
+        
+        my_sites = []
+        shared_sites = []
+        
+        for site in queryset:
+            # Check if the site was created by the currently authenticated user
+            if site.created_by == profile:
+                my_sites.append(site)
+            else:
+                shared_sites.append(site)
+                
+        return Response({
+            "my_sites": self.get_serializer(my_sites, many=True).data,
+            "shared_sites": self.get_serializer(shared_sites, many=True).data
+        })
 
     def create(self, request, *args, **kwargs):
         profile = get_profile_user(request)
@@ -310,45 +331,89 @@ class ConfirmRegisterSiteView(APIView):
             
             center_coordinates_json = json.dumps({"latitude": float(lat), "longitude": float(lng)})
             extent_meters = data.get("extent_meters", 500)
+
+            # Retrieve the authenticated user's profile
+            profile = get_profile_user(request)
+
+            if not profile:
+                return Response(
+                    {"detail": "User profile not found."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             
             # Retrieve the correct UUID from your custom Users table using the authenticated user's email
-            user_uuid = None
-            if request.user and request.user.is_authenticated:
-                try:
-                    # Assuming request.user.email or request.user.username matches the email in your users table
-                    db_user = Users.objects.get(email=getattr(request.user, 'email', request.user.username))
-                    user_uuid = str(db_user.user_id)
-                except Users.DoesNotExist:
-                    user_uuid = None
-
+            # Create site and membership together
             with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO construction_sites 
-                    (site_name, start_date, location, city, country, area, is_public, center_coordinates, extent_meters, created_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::uuid)
-                    RETURNING construction_id;
-                """, [
-                    site_name, 
-                    start_date, 
-                    location, 
-                    city, 
-                    country, 
-                    area, 
-                    is_public, 
-                    center_coordinates_json, 
-                    extent_meters, 
-                    user_uuid
-                ])
-                
-                row = cursor.fetchone()
-                site_id = row[0] if row else None
 
-            return Response({"message": "Site registered successfully", "site_id": site_id}, status=status.HTTP_201_CREATED)
+                with transaction.atomic():
+
+                    cursor.execute("""
+                        INSERT INTO construction_sites
+                        (
+                            construction_id,
+                            site_name,
+                            start_date,
+                            location,
+                            city,
+                            country,
+                            area,
+                            is_public,
+                            center_coordinates,
+                            extent_meters,
+                            created_by
+                        )
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s::jsonb, %s, %s
+                        )
+                        RETURNING construction_id;
+                    """, [
+                        uuid.uuid4(),
+                        site_name,
+                        start_date,
+                        location,
+                        city,
+                        country,
+                        area,
+                        is_public,
+                        center_coordinates_json,
+                        extent_meters,
+                        profile.user_id
+                    ])
+
+                    row = cursor.fetchone()
+                    site_id = row[0]
+
+                    # Automatically register creator as a site member
+                    cursor.execute("""
+                        INSERT INTO user_site
+                        (
+                            user_site_id,
+                            user_id,
+                            construction_id
+                        )
+                        VALUES (%s, %s, %s);
+                    """, [
+                        uuid.uuid4(),
+                        profile.user_id,
+                        site_id
+                    ])
+
+            return Response({
+                "message": "Site registered successfully",
+                "site_id": str(site_id),
+                "owner_id": str(profile.user_id),
+                "membership_created": True
+            }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 class DiscardPreviewView(APIView):
     permission_classes = [IsAuthenticated]

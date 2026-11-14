@@ -11,6 +11,8 @@ import MemberRequest from './pages/MemberRequest';
 import PrivateRoute from './components/PrivateRoute';
 import PublicRoute from './components/PublicRoute';
 import RegisterSitePage from './pages/RegisterSite';
+import MySites from './pages/MySites';
+import SiteDetails from './pages/SiteDetails';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -88,6 +90,9 @@ export default function App() {
           <Route path="/construction-site" element={<ConstructionSite />} />
           <Route path="/member-request" element={<MemberRequest />} />
           <Route path="/construction-site/register" element={<RegisterSitePage />} />
+          <Route path="/construction-site/member" element={<MySites />} />
+
+          <Route path="/construction-site/member/:id" element={<SiteDetails />} />
         </Route>
       </Routes>
     </Router>

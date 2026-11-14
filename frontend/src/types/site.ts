@@ -48,7 +48,6 @@ export interface ProgressLog {
   processed_at: string | null
 }
 
-
 export interface SatellitePreviewResponse {
   signed_url: string
   file_path: string
