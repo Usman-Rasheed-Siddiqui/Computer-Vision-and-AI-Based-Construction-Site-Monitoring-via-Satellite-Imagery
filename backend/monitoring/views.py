@@ -13,6 +13,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 import json
 import uuid
+import logging
 
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -26,6 +27,8 @@ import math
 
 from decimal import Decimal
 from django.utils import timezone
+
+from .gemini_service import generate_site_ai_analysis
 
 from .models import (
     Users,
@@ -43,7 +46,7 @@ from .serializers import (
 )
 
 from monitoring.image_retrieval.image_retrieval import get_image, upload_temporary_preview, supabase, BUCKET_NAME
-CHANGE_DETECTION_THRESHOLD = 0.04
+CHANGE_DETECTION_THRESHOLD = 0.03
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -966,4 +969,96 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
                     "progress_id": str(progress_id)
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+logger = logging.getLogger(__name__)
+
+
+class SiteAIAnalysisView(generics.GenericAPIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, site_id):
+
+        # 1. Identify the authenticated user's profile
+        profile = get_profile_user(request)
+
+        if not profile:
+            return Response(
+                {"detail": "User profile not found."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2. Verify ownership or membership
+        site = get_object_or_404(
+            ConstructionSites.objects.filter(
+                Q(created_by=profile) |
+                Q(usersite__user=profile)
+            ).distinct(),
+            construction_id=site_id
+        )
+
+        # 3. Retrieve only this user's completed analyses
+        # Keep the most recent 50 records to limit the AI input size.
+        logs = list(
+            ProgressLogs.objects.filter(
+                construction_id=site.construction_id,
+                requested_by=profile,
+                status="completed"
+            )
+            .order_by("-satellite_image_date", "-processed_at")[:50]
+        )
+
+        # Present records in chronological order to Gemini
+        logs.reverse()
+
+        if not logs:
+            return Response(
+                {
+                    "detail": (
+                        "You do not have any completed progress "
+                        "analyses for this construction site. "
+                        "Generate a progress analysis first."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 4. Generate AI analysis
+        try:
+
+            ai_analysis = generate_site_ai_analysis(
+                site=site,
+                progress_logs=logs
+            )
+
+            # 5. Return the result without saving it to the database
+            return Response(
+                {
+                    "status": "success",
+                    "site_id": str(site.construction_id),
+                    "site_name": site.site_name,
+                    "records_analyzed": len(logs),
+                    "analysis": ai_analysis
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception:
+
+            logger.exception(
+                "Gemini AI analysis failed for site %s",
+                site_id
+            )
+
+            return Response(
+                {
+                    "status": "error",
+                    "detail": (
+                        "Unable to generate the AI analysis. "
+                        "Please try again later."
+                    )
+                },
+                status=status.HTTP_502_BAD_GATEWAY
             )

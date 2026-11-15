@@ -8,7 +8,11 @@ import type {
 } from '../types/site'
 
 export const getSites = async () => {
-  const response = await api.get<ConstructionSite[]>('/sites/')
+  const response = await api.get<{
+    my_sites: ConstructionSite[]
+    shared_sites: ConstructionSite[]
+  }>('/sites/')
+
   return response.data
 }
 
@@ -58,6 +62,7 @@ export const updateSiteMetadata = async (
     area?: string | number
     is_completed?: boolean
     is_public?: boolean
+    start_date?: string
   }
 ) => {
   const response = await api.patch<{ message: string }>(`/sites/${siteId}/update/`, payload)

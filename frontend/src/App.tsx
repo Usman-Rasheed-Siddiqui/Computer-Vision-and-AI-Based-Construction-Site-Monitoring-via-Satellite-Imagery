@@ -13,6 +13,7 @@ import PublicRoute from './components/PublicRoute';
 import RegisterSitePage from './pages/RegisterSite';
 import MySites from './pages/MySites';
 import SiteDetails from './pages/SiteDetails';
+import MonitorSite from './pages/MonitorSite';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="/member-request" element={<MemberRequest />} />
           <Route path="/construction-site/register" element={<RegisterSitePage />} />
           <Route path="/construction-site/member" element={<MySites />} />
+          <Route path="/construction-site/member/:id/monitor" element={<MonitorSite />}/>
 
           <Route path="/construction-site/member/:id" element={<SiteDetails />} />
         </Route>

@@ -150,15 +150,28 @@ def get_image(target_date, lat, lon, extent_m, zoom=None, workers=16):
     # 4. Stitch and Crop
     mosaic = Image.new("RGB", ((x1 - x0 + 1) * 256, (y1 - y0 + 1) * 256))
     missing = 0
+    successful = 0
+
     for (x, y), data in zip(coords, tiles):
         if data is None:
             missing += 1
             continue
+
         try:
             tile_img = Image.open(io.BytesIO(data)).convert("RGB")
-            mosaic.paste(tile_img, ((x - x0) * 256, (y - y0) * 256))
+            mosaic.paste(
+                tile_img,
+                ((x - x0) * 256, (y - y0) * 256)
+            )
+            successful += 1
         except Exception:
             missing += 1
+
+    if successful == 0:
+        raise RuntimeError(
+            f"No satellite imagery tiles were available "
+            f"for the requested date {target_date}."
+        )
 
     box = (
         round(left - x0 * 256),
