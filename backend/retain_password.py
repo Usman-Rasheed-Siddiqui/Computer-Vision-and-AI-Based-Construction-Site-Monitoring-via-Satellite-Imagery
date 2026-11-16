@@ -12,7 +12,7 @@ django.setup()
 
 from django.contrib.auth.models import User
 
-user = User.objects.get(username="usman@outlook.com")
+user = User.objects.get(username="uas-siddiqui")
 user.set_password("Sanaaffan@123")
 user.save()
 

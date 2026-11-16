@@ -7,13 +7,14 @@ import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import Hero from './pages/Hero';
 import ConstructionSite from './pages/ConstructionSite';
-import MemberRequest from './pages/MemberRequest';
+import MemberRequest from './pages/AccessRequest';
 import PrivateRoute from './components/PrivateRoute';
 import PublicRoute from './components/PublicRoute';
 import RegisterSitePage from './pages/RegisterSite';
 import MySites from './pages/MySites';
 import SiteDetails from './pages/SiteDetails';
 import MonitorSite from './pages/MonitorSite';
+import AIAnalysis from './pages/AIAnalysis/AIAnalysis';
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -89,12 +90,13 @@ export default function App() {
         <Route element={<PrivateRoute />}>
           <Route path="/hero" element={<Hero />} />
           <Route path="/construction-site" element={<ConstructionSite />} />
-          <Route path="/member-request" element={<MemberRequest />} />
+          <Route path="/construction-site/member-request" element={<MemberRequest />} />
           <Route path="/construction-site/register" element={<RegisterSitePage />} />
           <Route path="/construction-site/member" element={<MySites />} />
-          <Route path="/construction-site/member/:id/monitor" element={<MonitorSite />}/>
 
+          <Route path="/construction-site/member/:id/monitor" element={<MonitorSite />}/>
           <Route path="/construction-site/member/:id" element={<SiteDetails />} />
+          <Route path="/construction-site/member/:id/ai-analysis" element={<AIAnalysis />}/>
         </Route>
       </Routes>
     </Router>

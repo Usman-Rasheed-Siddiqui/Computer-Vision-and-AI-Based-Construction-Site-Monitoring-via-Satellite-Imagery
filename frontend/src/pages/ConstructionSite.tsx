@@ -61,7 +61,7 @@ export default function ConstructionSite() {
             </Link>
 
             {/* 3. Join a Construction Site (Brown/Gold Theme) */}
-            <Link to="/construction-site/join" className="group block focus:outline-none animate-fade-up" style={{ animationDelay: '400ms' }}>
+            <Link to="/construction-site/member-request" className="group block focus:outline-none animate-fade-up" style={{ animationDelay: '400ms' }}>
               <PixelCard
                 colors={['#475569', '#64748B', '#94A3B8']}
                 trigger="hover"

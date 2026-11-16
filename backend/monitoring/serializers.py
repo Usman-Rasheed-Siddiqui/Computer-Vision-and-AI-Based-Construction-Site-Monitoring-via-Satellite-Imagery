@@ -65,12 +65,15 @@ class SiteAccessRequestSerializer(serializers.ModelSerializer):
     requester_email = serializers.EmailField(
         source="request_from.email", read_only=True
     )
+    requester_name = serializers.CharField(
+        source="request_from.full_name", read_only=True
+    )
 
     class Meta:
         model = SiteAccessRequest
         fields = [
             "request_id", "site_id", "site_name",
-            "requester_email", "request_from", "request_to",
+            "requester_email", "requester_name", "request_from", "request_to",
             "construction", "status", "created_at",
         ]
         read_only_fields = fields

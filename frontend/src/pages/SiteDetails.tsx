@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Activity,
-  FileText,
   MapPin,
   Edit2,
   CheckCircle2,
@@ -17,11 +17,13 @@ import {
   CalendarDays,
   Clock3,
   Bot,
+  AlertCircle,
 } from 'lucide-react';
 
 import api from '../api/axios';
 import { updateSiteMetadata } from '../api/sites';
 import DashboardNav from '../components/DashboardNav';
+import SwipeToast from '../components/SwipeToast';
 
 // ---------------------------------------------------------
 // TYPES
@@ -57,6 +59,8 @@ export interface ProgressLog {
   change_percentage: string | number | null;
   status: string;
   satellite_image_date: string;
+  earlier_date?: string | null;
+  later_date?: string | null;
   processed_at: string | null;
 }
 
@@ -64,12 +68,24 @@ export interface ProgressLog {
 // HELPERS
 // ---------------------------------------------------------
 
-const formatDate = (date: string | null) => {
-  if (!date) return '—';
+// Date-only values ("2026-03-09") are read as LOCAL dates. new Date("2026-03-09")
+// is read as UTC midnight, which shows the previous day in some timezones.
+const parseDate = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
 
-  const parsedDate = new Date(date);
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
-  if (isNaN(parsedDate.getTime())) return '—';
+  const parsed = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
+
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDate = (date: string | null | undefined) => {
+  const parsedDate = parseDate(date);
+
+  if (!parsedDate) return '—';
 
   return parsedDate.toLocaleDateString('en-GB', {
     day: '2-digit',
@@ -78,10 +94,92 @@ const formatDate = (date: string | null) => {
   });
 };
 
+const formatDateTime = (date: string | null | undefined) => {
+  const parsedDate = parseDate(date);
+
+  if (!parsedDate) return '—';
+
+  return parsedDate.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const getTodayString = () => {
+  const today = new Date();
+
+  return [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('-');
+};
+
+// The later image is the date a comparison "belongs" to.
+const getLaterDate = (log: ProgressLog) =>
+  log.later_date || log.satellite_image_date;
+
+const getDaysBetween = (
+  earlier: string | null | undefined,
+  later: string | null | undefined
+) => {
+  const from = parseDate(earlier);
+  const to = parseDate(later);
+
+  if (!from || !to) return null;
+
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+};
+
+const describePeriod = (log: ProgressLog) =>
+  log.earlier_date
+    ? `${formatDate(log.earlier_date)} to ${formatDate(getLaterDate(log))}`
+    : `Image of ${formatDate(getLaterDate(log))}`;
+
+// Oldest comparison first. Ties are broken by when it was processed.
+const byComparisonDate = (a: ProgressLog, b: ProgressLog) => {
+  const timeA = parseDate(getLaterDate(a))?.getTime() ?? 0;
+  const timeB = parseDate(getLaterDate(b))?.getTime() ?? 0;
+
+  if (timeA !== timeB) return timeA - timeB;
+
+  return (
+    (parseDate(a.processed_at)?.getTime() ?? 0) -
+    (parseDate(b.processed_at)?.getTime() ?? 0)
+  );
+};
+
 const formatNumber = (value: number, decimals = 2) => {
   return value.toLocaleString('en-US', {
     maximumFractionDigits: decimals,
   });
+};
+
+type ToastKind = 'success' | 'error' | 'warning';
+
+interface ToastItem {
+  id: number;
+  kind: ToastKind;
+  title: string;
+  description?: string;
+}
+
+const TOAST_STYLE: Record<ToastKind, { fuse: string; icon: ReactNode }> = {
+  success: {
+    fuse: '#34d399',
+    icon: <CheckCircle2 className="text-emerald-400" />,
+  },
+  error: {
+    fuse: '#f87171',
+    icon: <AlertCircle className="text-red-400" />,
+  },
+  warning: {
+    fuse: '#f5a524',
+    icon: <ShieldAlert className="text-amber-400" />,
+  },
 };
 
 // ---------------------------------------------------------
@@ -101,6 +199,21 @@ function SiteDetails() {
   const [isEditingArea, setIsEditingArea] = useState(false);
   const [editedArea, setEditedArea] = useState<string | number>('');
   const [editedStartDate, setEditedStartDate] = useState('');
+  const [editedEndDate, setEditedEndDate] = useState('');
+
+  // Toast notifications (replace the browser alert boxes)
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastCounter = useRef(0);
+
+  const notify = (kind: ToastKind, title: string, description?: string) => {
+    toastCounter.current += 1;
+    const id = toastCounter.current;
+
+    setToasts((current) => [...current, { id, kind, title, description }]);
+  };
+
+  const removeToast = (id: number) =>
+    setToasts((current) => current.filter((toast) => toast.id !== id));
   const navigate = useNavigate();
 
   // ---------------------------------------------------------
@@ -125,6 +238,7 @@ function SiteDetails() {
           setSite(selectedSite);
           setEditedArea(selectedSite.area || '');
           setEditedStartDate(selectedSite.start_date);
+          setEditedEndDate(selectedSite.end_date || '');
 
           const isOwnedByMe = mySites.some(
             (item) => String(item.construction_id) === id
@@ -176,8 +290,14 @@ function SiteDetails() {
       await updateSiteMetadata(site.construction_id, {
         is_completed: newStatus,
       });
+
+      notify(
+        'success',
+        newStatus ? 'Project marked as completed' : 'Project marked as active',
+        site.site_name
+      );
     } catch (err) {
-      alert('Failed to update status.');
+      notify('error', 'Could not update status', 'Please try again.');
       setSite(previousSite);
     }
   };
@@ -194,8 +314,14 @@ function SiteDetails() {
       await updateSiteMetadata(site.construction_id, {
         is_public: newVisibility,
       });
+
+      notify(
+        'success',
+        newVisibility ? 'Site is now public' : 'Site is now private',
+        site.site_name
+      );
     } catch (err) {
-      alert('Failed to update visibility.');
+      notify('error', 'Could not update visibility', 'Please try again.');
       setSite(previousSite);
     }
   };
@@ -213,8 +339,16 @@ function SiteDetails() {
       await updateSiteMetadata(site.construction_id, {
         area: editedArea,
       });
+
+      notify(
+        'success',
+        'Site area updated',
+        editedArea === '' || editedArea === null
+          ? 'The area was cleared.'
+          : `${formatNumber(Number(editedArea))} m²`
+      );
     } catch (err) {
-      alert('Failed to update area.');
+      notify('error', 'Could not update the area', 'Please try again.');
       setSite({ ...site, area: previousArea });
       setEditedArea(previousArea || '');
     }
@@ -223,15 +357,13 @@ function SiteDetails() {
   const handleSaveStartDate = async () => {
     if (!site || !isOwner || !editedStartDate) return;
 
-    const today = new Date();
-    const todayStr = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, '0'),
-      String(today.getDate()).padStart(2, '0'),
-    ].join('-');
+    if (editedStartDate > getTodayString()) {
+      notify('warning', 'Start date not saved', 'It cannot be in the future.');
+      return;
+    }
 
-    if (editedStartDate > todayStr) {
-      alert('The construction start date cannot be in the future.');
+    if (site.end_date && editedStartDate > site.end_date) {
+      notify('warning', 'Start date not saved', 'It cannot be after the end date.');
       return;
     }
 
@@ -245,11 +377,76 @@ function SiteDetails() {
         start_date: editedStartDate,
       });
 
-      alert('Construction start date updated successfully.');
+      notify(
+        'success',
+        'Construction start date updated',
+        formatDate(editedStartDate)
+      );
     } catch (error: any) {
-      alert(
-        error.response?.data?.detail ||
-        'Unable to update the construction start date.'
+      notify(
+        'error',
+        'Could not update the start date',
+        error.response?.data?.detail || 'Please try again.'
+      );
+    }
+  };
+
+  // End date: only the owner can add, change or remove it.
+  const handleSaveEndDate = async () => {
+    if (!site || !isOwner || !editedEndDate) return;
+
+    if (editedEndDate < site.start_date) {
+      notify('warning', 'End date not saved', 'It cannot be before the start date.');
+      return;
+    }
+
+    const wasAdded = !site.end_date;
+
+    try {
+      await updateSiteMetadata(site.construction_id, {
+        end_date: editedEndDate,
+      });
+
+      setSite({
+        ...site,
+        end_date: editedEndDate,
+      });
+
+      notify(
+        'success',
+        wasAdded ? 'Construction end date added' : 'Construction end date updated',
+        formatDate(editedEndDate)
+      );
+    } catch (error: any) {
+      notify(
+        'error',
+        'Could not update the end date',
+        error.response?.data?.detail || 'Please try again.'
+      );
+    }
+  };
+
+  const handleClearEndDate = async () => {
+    if (!site || !isOwner || !site.end_date) return;
+
+    try {
+      await updateSiteMetadata(site.construction_id, {
+        end_date: null,
+      });
+
+      setSite({
+        ...site,
+        end_date: null,
+      });
+
+      setEditedEndDate('');
+
+      notify('success', 'Construction end date removed');
+    } catch (error: any) {
+      notify(
+        'error',
+        'Could not remove the end date',
+        error.response?.data?.detail || 'Please try again.'
       );
     }
   };
@@ -293,17 +490,7 @@ function SiteDetails() {
 
   const completedLogs = progressLogs
     .filter((log) => log.status?.toLowerCase() === 'completed')
-    .sort((a, b) => {
-      const dateA = new Date(
-        a.processed_at || a.satellite_image_date
-      ).getTime();
-
-      const dateB = new Date(
-        b.processed_at || b.satellite_image_date
-      ).getTime();
-
-      return dateA - dateB;
-    });
+    .sort(byComparisonDate);
 
   const latestProgress =
     completedLogs.length > 0
@@ -348,18 +535,19 @@ function SiteDetails() {
       .filter(Boolean)
       .join(', ') || 'Not specified';
 
-  const chartPoints = changePercentageData.map((value, index) => {
-    const x =
-      changePercentageData.length === 1
-        ? 400
-        : 40 + (index / (changePercentageData.length - 1)) * 720;
+  // Line chart geometry, in percent of the plot area (0 = left/top, 100 = right/bottom).
+  // Dots are HTML elements placed with the same percentages, so they stay round
+  // however wide the chart is.
+  const getPointX = (index: number) =>
+    changePercentageData.length === 1
+      ? 50
+      : 4 + (index / (changePercentageData.length - 1)) * 92;
 
-    const y = 205 - (value / maxPercentage) * 165;
+  const getPointY = (value: number) => 92 - (value / maxPercentage) * 84;
 
-    return `${x},${y}`;
-  });
-
-  const lineChartPoints = chartPoints.join(' ');
+  const lineChartPoints = changePercentageData
+    .map((value, index) => `${getPointX(index)},${getPointY(value)}`)
+    .join(' ');
 
   // ---------------------------------------------------------
   // RENDER
@@ -419,6 +607,11 @@ function SiteDetails() {
               </button>
 
               <button
+                onClick={() =>
+                  navigate(
+                    `/construction-site/member/${site.construction_id}/ai-analysis`
+                  )
+                }
                 className="flex items-center gap-2 bg-[#1a1820] hover:bg-[#27242f] text-emerald-400 border border-emerald-500/30 px-5 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer"
               >
                 <Bot size={16} />
@@ -607,7 +800,7 @@ function SiteDetails() {
           </div>
 
           {/* -------------------------------------------------
-              SITE PROGRESS AND BAR CHART
+              SITE PROGRESS (LATEST RESULT)
           ------------------------------------------------- */}
 
           <div className="mb-6 rounded-[24px] sm:rounded-[33px] bg-[rgba(10,20,35,0.6)] backdrop-blur-[20px] border border-[#15803D]/20 p-5 sm:p-8">
@@ -632,7 +825,7 @@ function SiteDetails() {
                 <div className="flex items-center gap-2 text-xs text-white/40">
                   <CalendarDays size={14} />
 
-                  Latest image: {formatDate(latestProgress.satellite_image_date)}
+                  Latest comparison: {describePeriod(latestProgress)}
                 </div>
               )}
 
@@ -649,7 +842,7 @@ function SiteDetails() {
 
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="flex flex-wrap items-center gap-3">
 
               {latestProgress ? (
                 <>
@@ -658,7 +851,9 @@ function SiteDetails() {
                   </span>
 
                   <span className="text-white/50 text-xs sm:text-sm">
-                    From project start to latest available imagery
+                    {latestProgress.earlier_date
+                      ? `Between ${formatDate(latestProgress.earlier_date)} and ${formatDate(getLaterDate(latestProgress))}`
+                      : `Satellite image of ${formatDate(getLaterDate(latestProgress))}`}
                   </span>
                 </>
               ) : (
@@ -669,87 +864,125 @@ function SiteDetails() {
 
             </div>
 
-            {/* BAR GRAPH */}
+            {/* PREVIOUS RESULT COMPARISON */}
 
-            <div className="border-t border-white/5 pt-6">
+            {latestProgress && previousProgress && previousAreaChanged !== null && (
+              <div className="mt-6 pt-5 border-t border-white/5 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
 
-              <div className="flex items-center justify-between mb-5">
+                <TrendingUp size={16} className="text-[#4ADE80]" />
+
+                <span className="text-white/50">
+                  Previous recorded result ({describePeriod(previousProgress)}):
+                </span>
+
+                <span className="text-white/80 font-medium">
+                  {formatNumber(previousAreaChanged)} m²
+                </span>
+
+              </div>
+            )}
+
+          </div>
+
+          {/* -------------------------------------------------
+              GRAPHS, SIDE BY SIDE
+          ------------------------------------------------- */}
+
+          <div className="mb-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* BAR GRAPH: AREA CHANGED */}
+
+            <div className="flex flex-col rounded-[24px] sm:rounded-[33px] bg-[rgba(10,20,35,0.6)] backdrop-blur-[20px] border border-[#15803D]/20 p-5 sm:p-7">
+
+              <div className="flex items-start justify-between gap-3 mb-6">
 
                 <div>
-                  <p className="text-white/80 text-sm font-medium">
+                  <p className="text-white text-base sm:text-xl font-medium">
                     Change Activity
                   </p>
 
-                  <p className="text-white/35 text-xs mt-1">
-                    Changed area recorded in each completed analysis
+                  <p className="text-white/40 text-xs sm:text-sm mt-1">
+                    Area changed in each analysis, placed by the date of its later image
                   </p>
                 </div>
 
-                <BarChart3 size={18} className="text-[#4ADE80]" />
+                <BarChart3 size={18} className="text-[#4ADE80] shrink-0 mt-1" />
 
               </div>
 
               {completedLogs.length > 0 ? (
-                <div className="w-full overflow-x-auto pb-2">
+                <div className="flex-1 flex flex-col justify-end">
 
-                  <div
-                    className="flex items-end gap-[5px] sm:gap-[7px] h-[150px] sm:h-[190px] min-w-full"
-                    style={{
-                      minWidth:
-                        completedLogs.length > 15
-                          ? `${completedLogs.length * 32}px`
-                          : '100%',
-                    }}
-                  >
+                  {/* Extra top padding (cancelled by the negative margin) leaves room for tooltips */}
+                  <div className="w-full overflow-x-auto pb-2 pt-[76px] -mt-[76px]">
 
-                    {areaChangedData.map((value, index) => {
-                      const heightPercent = Math.max(
-                        (value / maxArea) * 100,
-                        3
-                      );
+                    <div
+                      className="flex items-end gap-[5px] sm:gap-[7px] h-[150px] sm:h-[190px] min-w-full"
+                      style={{
+                        minWidth:
+                          completedLogs.length > 15
+                            ? `${completedLogs.length * 32}px`
+                            : '100%',
+                      }}
+                    >
 
-                      const isLatest = index === areaChangedData.length - 1;
+                      {areaChangedData.map((value, index) => {
+                        const heightPercent = Math.max(
+                          (value / maxArea) * 100,
+                          3
+                        );
 
-                      return (
-                        <div
-                          key={completedLogs[index].progress_id}
-                          className="group relative flex-1 min-w-[12px] h-full flex flex-col justify-end items-center"
-                        >
+                        const isLatest = index === areaChangedData.length - 1;
+                        const log = completedLogs[index];
 
-                          <div className="absolute bottom-full mb-2 hidden group-hover:block z-20 whitespace-nowrap rounded-lg bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white shadow-xl">
-                            {formatNumber(value)} m²
-                            <br />
-                            {formatDate(
-                              completedLogs[index].satellite_image_date
-                            )}
-                          </div>
-
+                        return (
                           <div
-                            className={`w-full rounded-t-[3px] transition-all duration-500 ${
-                              isLatest
-                                ? 'bg-[#4ADE80] shadow-[0_0_12px_rgba(74,222,128,0.25)]'
-                                : 'bg-[#4ADE80]/45 hover:bg-[#4ADE80]/75'
-                            }`}
-                            style={{
-                              height: `${heightPercent}%`,
-                              minHeight: '4px',
-                            }}
-                          />
+                            key={log.progress_id}
+                            className="group relative flex-1 min-w-[12px] h-full flex flex-col justify-end items-center"
+                          >
 
-                        </div>
-                      );
-                    })}
+                            <div
+                              className={`absolute bottom-full mb-2 hidden group-hover:block z-20 whitespace-nowrap rounded-lg bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white shadow-xl ${
+                                index > areaChangedData.length / 2
+                                  ? 'right-0'
+                                  : 'left-0'
+                              }`}
+                            >
+                              <span className="font-semibold">
+                                {formatNumber(value)} m²
+                              </span>
+                              <br />
+                              <span className="text-white/60">
+                                {describePeriod(log)}
+                              </span>
+                            </div>
+
+                            <div
+                              className={`w-full rounded-t-[3px] transition-all duration-500 ${
+                                isLatest
+                                  ? 'bg-[#4ADE80] shadow-[0_0_12px_rgba(74,222,128,0.25)]'
+                                  : 'bg-[#4ADE80]/45 hover:bg-[#4ADE80]/75'
+                              }`}
+                              style={{
+                                height: `${heightPercent}%`,
+                                minHeight: '4px',
+                              }}
+                            />
+
+                          </div>
+                        );
+                      })}
+
+                    </div>
 
                   </div>
 
                   <div className="flex justify-between gap-3 mt-3 text-[10px] sm:text-xs text-white/35">
-                    <span>
-                      {formatDate(completedLogs[0].satellite_image_date)}
-                    </span>
+                    <span>{formatDate(getLaterDate(completedLogs[0]))}</span>
 
                     <span>
                       {formatDate(
-                        completedLogs[completedLogs.length - 1].satellite_image_date
+                        getLaterDate(completedLogs[completedLogs.length - 1])
                       )}
                     </span>
                   </div>
@@ -765,174 +998,155 @@ function SiteDetails() {
 
             </div>
 
-            {/* PREVIOUS RESULT COMPARISON */}
+            {/* LINE GRAPH: CHANGE PERCENTAGE */}
 
-            {latestProgress && previousAreaChanged !== null && (
-              <div className="mt-6 pt-5 border-t border-white/5 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+            <div className="flex flex-col rounded-[24px] sm:rounded-[33px] bg-[rgba(10,20,35,0.6)] backdrop-blur-[20px] border border-[#15803D]/20 p-5 sm:p-7">
 
-                <TrendingUp size={16} className="text-[#4ADE80]" />
+              <div className="flex items-start justify-between gap-3 mb-6">
 
-                <span className="text-white/50">
-                  Previous recorded result:
-                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={18} className="text-[#4ADE80]" />
 
-                <span className="text-white/80 font-medium">
-                  {formatNumber(previousAreaChanged)} m²
-                </span>
+                    <p className="text-white text-base sm:text-xl font-medium">
+                      Change Trend
+                    </p>
+                  </div>
 
-              </div>
-            )}
-
-          </div>
-
-          {/* -------------------------------------------------
-              CHANGE TREND LINE GRAPH
-          ------------------------------------------------- */}
-
-          <div className="mb-10 rounded-[24px] sm:rounded-[33px] bg-[rgba(10,20,35,0.6)] backdrop-blur-[20px] border border-[#15803D]/20 p-5 sm:p-8">
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp size={18} className="text-[#4ADE80]" />
-
-                  <p className="text-white text-base sm:text-xl font-medium">
-                    Change Trend
+                  <p className="text-white/40 text-xs sm:text-sm mt-1">
+                    Share of the site area that changed in each analysis
                   </p>
                 </div>
 
-                <p className="text-white/40 text-xs sm:text-sm">
-                  Percentage of site area identified as changed in each analysis
-                </p>
+                {latestProgress && (
+                  <div className="shrink-0 rounded-lg bg-[#15803D]/20 border border-[#15803D]/30 px-4 py-2">
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">
+                      Latest change
+                    </p>
+
+                    <p className="text-[#4ADE80] text-xl font-medium">
+                      {formatNumber(latestPercentage)}%
+                    </p>
+                  </div>
+                )}
+
               </div>
 
-              {latestProgress && (
-                <div className="rounded-lg bg-[#15803D]/20 border border-[#15803D]/30 px-4 py-2">
-                  <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">
-                    Latest change
-                  </p>
+              {completedLogs.length > 0 ? (
+                <div className="flex-1 flex flex-col justify-end">
 
-                  <p className="text-[#4ADE80] text-xl font-medium">
-                    {formatNumber(latestPercentage)}%
+                  <div className="relative h-[150px] sm:h-[190px] w-full">
+
+                    <svg
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      className="absolute inset-0 w-full h-full overflow-visible"
+                    >
+
+                      {/* GRID LINES */}
+
+                      {[8, 29, 50, 71, 92].map((y) => (
+                        <line
+                          key={y}
+                          x1="0"
+                          y1={y}
+                          x2="100"
+                          y2={y}
+                          stroke="rgba(255,255,255,0.08)"
+                          strokeWidth="1"
+                          strokeDasharray="4 5"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      ))}
+
+                      {/* AREA UNDER THE LINE */}
+
+                      {completedLogs.length > 1 && (
+                        <polygon
+                          points={`${getPointX(0)},92 ${lineChartPoints} ${getPointX(
+                            changePercentageData.length - 1
+                          )},92`}
+                          fill="rgba(74,222,128,0.09)"
+                        />
+                      )}
+
+                      {/* LINE */}
+
+                      {completedLogs.length > 1 && (
+                        <polyline
+                          points={lineChartPoints}
+                          fill="none"
+                          stroke="#4ADE80"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      )}
+
+                    </svg>
+
+                    {/* DATA POINTS */}
+
+                    {changePercentageData.map((value, index) => {
+                      const log = completedLogs[index];
+
+                      return (
+                        <div
+                          key={log.progress_id}
+                          className="group absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+                          style={{
+                            left: `${getPointX(index)}%`,
+                            top: `${getPointY(value)}%`,
+                          }}
+                        >
+
+                          <span className="absolute h-5 w-5 rounded-full bg-[#4ADE80]/15" />
+
+                          <span className="relative h-2.5 w-2.5 rounded-full border-2 border-[#080A19] bg-[#4ADE80]" />
+
+                          <div
+                            className={`absolute bottom-full mb-2 hidden group-hover:block z-20 whitespace-nowrap rounded-lg bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white shadow-xl ${
+                              index > changePercentageData.length / 2
+                                ? 'right-0'
+                                : 'left-0'
+                            }`}
+                          >
+                            <span className="font-semibold">
+                              {formatNumber(value)}% changed
+                            </span>
+                            <br />
+                            <span className="text-white/60">
+                              {describePeriod(log)}
+                            </span>
+                          </div>
+
+                        </div>
+                      );
+                    })}
+
+                  </div>
+
+                  <div className="flex justify-between gap-3 mt-3 text-[10px] sm:text-xs text-white/35">
+                    <span>{formatDate(getLaterDate(completedLogs[0]))}</span>
+
+                    <span>
+                      {formatDate(
+                        getLaterDate(completedLogs[completedLogs.length - 1])
+                      )}
+                    </span>
+                  </div>
+
+                </div>
+              ) : (
+                <div className="h-[150px] sm:h-[190px] flex items-center justify-center border border-dashed border-white/10 rounded-xl">
+                  <p className="text-white/35 text-sm">
+                    Your change trend graph will appear after monitoring.
                   </p>
                 </div>
               )}
 
             </div>
-
-            {completedLogs.length > 0 ? (
-              <div className="w-full">
-
-                <div className="w-full overflow-x-auto">
-
-                  <svg
-                    viewBox="0 0 800 240"
-                    preserveAspectRatio="none"
-                    className="w-full min-w-[500px] h-[190px] sm:h-[260px] overflow-visible"
-                  >
-
-                    {/* GRID LINES */}
-
-                    {[40, 82, 124, 166, 208].map((y) => (
-                      <line
-                        key={y}
-                        x1="40"
-                        y1={y}
-                        x2="760"
-                        y2={y}
-                        stroke="rgba(255,255,255,0.08)"
-                        strokeWidth="1"
-                        strokeDasharray="4 5"
-                      />
-                    ))}
-
-                    {/* AREA UNDER THE LINE */}
-
-                    {completedLogs.length > 1 && (
-                      <polygon
-                        points={`40,208 ${lineChartPoints} 760,208`}
-                        fill="rgba(74,222,128,0.09)"
-                      />
-                    )}
-
-                    {/* LINE */}
-
-                    {completedLogs.length > 1 && (
-                      <polyline
-                        points={lineChartPoints}
-                        fill="none"
-                        stroke="#4ADE80"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    )}
-
-                    {/* DATA POINTS */}
-
-                    {changePercentageData.map((value, index) => {
-                      const x =
-                        changePercentageData.length === 1
-                          ? 400
-                          : 40 +
-                            (index / (changePercentageData.length - 1)) * 720;
-
-                      const y = 205 - (value / maxPercentage) * 165;
-
-                      return (
-                        <g key={completedLogs[index].progress_id}>
-
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r="10"
-                            fill="rgba(74,222,128,0.13)"
-                          />
-
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r="5"
-                            fill="#4ADE80"
-                            stroke="#080A19"
-                            strokeWidth="2"
-                          />
-
-                          <title>
-                            {formatNumber(value)}% - {formatDate(
-                              completedLogs[index].satellite_image_date
-                            )}
-                          </title>
-
-                        </g>
-                      );
-                    })}
-
-                  </svg>
-
-                </div>
-
-                <div className="flex justify-between gap-3 mt-3 text-[10px] sm:text-xs text-white/35">
-                  <span>
-                    {formatDate(completedLogs[0].satellite_image_date)}
-                  </span>
-
-                  <span>
-                    {formatDate(
-                      completedLogs[completedLogs.length - 1].satellite_image_date
-                    )}
-                  </span>
-                </div>
-
-              </div>
-            ) : (
-              <div className="h-[190px] sm:h-[260px] flex items-center justify-center border border-dashed border-white/10 rounded-xl">
-                <p className="text-white/35 text-sm">
-                  Your change trend graph will appear after monitoring.
-                </p>
-              </div>
-            )}
 
           </div>
 
@@ -967,7 +1181,9 @@ function SiteDetails() {
                 </p>
 
                 <p className="text-white/35 text-xs leading-relaxed">
-                  Latest successful baseline comparison.
+                  {latestProgress
+                    ? `Latest comparison: ${describePeriod(latestProgress)}.`
+                    : 'No completed comparison yet.'}
                 </p>
 
               </div>
@@ -1032,7 +1248,7 @@ function SiteDetails() {
                 </div>
 
                 <p className="text-sm text-white/40">
-                  History of satellite image analysis performed for this site.
+                  Each row compares an earlier satellite image with a later one.
                 </p>
               </div>
 
@@ -1045,13 +1261,17 @@ function SiteDetails() {
 
             <div className="overflow-x-auto">
 
-              <table className="w-full min-w-[750px] text-left">
+              <table className="w-full min-w-[900px] text-left">
 
                 <thead>
                   <tr className="border-b border-white/10 bg-white/[0.02]">
 
                     <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-white/40">
-                      Image Date
+                      Earlier Image
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-white/40">
+                      Later Image
                     </th>
 
                     <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-white/40">
@@ -1076,17 +1296,7 @@ function SiteDetails() {
                 <tbody>
 
                   {[...progressLogs]
-                    .sort((a, b) => {
-                      const dateA = new Date(
-                        a.processed_at || a.satellite_image_date
-                      ).getTime();
-
-                      const dateB = new Date(
-                        b.processed_at || b.satellite_image_date
-                      ).getTime();
-
-                      return dateB - dateA;
-                    })
+                    .sort((a, b) => byComparisonDate(b, a))
                     .map((log) => {
                       const status = (log.status || '').toLowerCase();
 
@@ -1097,7 +1307,17 @@ function SiteDetails() {
                         >
 
                           <td className="whitespace-nowrap px-5 py-4 text-sm text-white/75">
-                            {formatDate(log.satellite_image_date)}
+                            {formatDate(log.earlier_date)}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-white/75">
+                            {formatDate(getLaterDate(log))}
+
+                            {getDaysBetween(log.earlier_date, getLaterDate(log)) !== null && (
+                              <span className="block text-xs text-white/35 mt-0.5">
+                                {getDaysBetween(log.earlier_date, getLaterDate(log))} days apart
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-5 py-4">
@@ -1130,7 +1350,7 @@ function SiteDetails() {
 
                           <td className="whitespace-nowrap px-5 py-4 text-sm text-white/45">
                             {log.processed_at
-                              ? formatDate(log.processed_at)
+                              ? formatDateTime(log.processed_at)
                               : 'Not processed yet'}
                           </td>
 
@@ -1188,7 +1408,11 @@ function SiteDetails() {
                     <input
                       type="date"
                       value={editedStartDate}
-                      max={new Date().toLocaleDateString('en-CA')}
+                      max={
+                        site.end_date && site.end_date < getTodayString()
+                          ? site.end_date
+                          : getTodayString()
+                      }
                       onChange={(e) => setEditedStartDate(e.target.value)}
                       className="bg-slate-950/50 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-emerald-500"
                     />
@@ -1211,16 +1435,56 @@ function SiteDetails() {
                 )}
               </div>
 
-              <div>
-                <p className="text-white/40 text-xs uppercase tracking-wider mb-2">
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-300">
                   Construction End Date
-                </p>
+                </label>
 
-                <p className="text-white text-base">
-                  {site.end_date
-                    ? formatDate(site.end_date)
-                    : 'Not specified'}
-                </p>
+                {isOwner ? (
+                  <>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input
+                        type="date"
+                        value={editedEndDate}
+                        min={site.start_date}
+                        onChange={(e) => setEditedEndDate(e.target.value)}
+                        className="bg-slate-950/50 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-emerald-500"
+                      />
+
+                      <button
+                        onClick={handleSaveEndDate}
+                        disabled={
+                          !editedEndDate ||
+                          editedEndDate === (site.end_date || '')
+                        }
+                        className="px-5 py-3 rounded-xl bg-emerald-500 text-slate-950 font-bold disabled:opacity-40"
+                      >
+                        {site.end_date ? 'Save Date' : 'Add Date'}
+                      </button>
+
+                      {site.end_date && (
+                        <button
+                          onClick={handleClearEndDate}
+                          className="px-5 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800/80 font-semibold transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {!site.end_date && (
+                      <p className="text-white/35 text-xs">
+                        No end date set. Pick a date, planned or actual, and press Add Date.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-white">
+                    {site.end_date
+                      ? formatDate(site.end_date)
+                      : 'Not specified'}
+                  </p>
+                )}
               </div>
 
             </div>
@@ -1229,6 +1493,26 @@ function SiteDetails() {
 
         </main>
 
+      </div>
+
+      {/* TOAST NOTIFICATIONS */}
+
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[1000] flex w-[min(356px,calc(100vw-32px))] flex-col items-end gap-2.5 sm:bottom-8 sm:right-8">
+        {toasts.map((toast) => (
+          <div key={toast.id} className="pointer-events-auto w-full">
+            <SwipeToast
+              inline
+              title={toast.title}
+              description={toast.description}
+              icon={TOAST_STYLE[toast.kind].icon}
+              background="#141a2e"
+              color="#f5f5f5"
+              fuseColor={TOAST_STYLE[toast.kind].fuse}
+              duration={toast.kind === 'success' ? 3500 : 5000}
+              onClose={() => removeToast(toast.id)}
+            />
+          </div>
+        ))}
       </div>
 
     </section>

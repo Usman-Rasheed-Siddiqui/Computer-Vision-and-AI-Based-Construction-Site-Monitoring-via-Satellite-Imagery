@@ -1,0 +1,266 @@
+.ai-loading-card,
+.ai-error-card,
+.ai-report-overview,
+.ai-report-card,
+.ai-report-note,
+.ai-stat-tile,
+.ai-chart-card {
+  background: rgba(17, 23, 41, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 18px;
+}
+
+.ai-loading-card {
+  padding: 30px;
+  min-height: 230px;
+}
+
+.ai-error-card {
+  padding: 28px;
+  border-color: rgba(248, 113, 113, 0.2);
+  background: rgba(127, 29, 29, 0.08);
+}
+
+.ai-report-container {
+  width: 100%;
+}
+
+.ai-report-overview {
+  padding: 26px;
+  animation: aiFadeUp 650ms ease both;
+}
+
+.ai-report-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 17px 20px;
+  background: rgba(245, 158, 11, 0.045);
+  border-color: rgba(245, 158, 11, 0.15);
+  animation: aiFadeUp 650ms ease both;
+}
+
+.ai-report-card {
+  padding: 25px;
+  opacity: 0;
+  animation: aiFadeUp 700ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transition:
+    border-color 250ms ease,
+    background-color 250ms ease,
+    transform 250ms ease;
+}
+
+.ai-report-card:hover {
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(20, 29, 48, 0.85);
+  transform: translateY(-2px);
+}
+
+.ai-report-icon {
+  width: 39px;
+  height: 39px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 11px;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+/* Lead card: the plain-language summary gets more presence */
+
+.ai-report-card--lead {
+  border-color: rgba(52, 211, 153, 0.22);
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.09), transparent 55%),
+    rgba(17, 23, 41, 0.72);
+}
+
+.ai-bullet {
+  width: 6px;
+  height: 6px;
+  margin-top: 11px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+/* Key numbers */
+
+.ai-stat-tile {
+  padding: 20px 22px;
+  animation: aiFadeUp 650ms ease both;
+}
+
+/* Charts */
+
+.ai-chart-card {
+  padding: 24px 24px 20px;
+  min-width: 0; /* lets the chart shrink inside a grid column */
+  animation: aiFadeUp 700ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.ai-tooltip {
+  min-width: 190px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #0d1224;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.ai-tooltip-title {
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ai-tooltip dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.ai-tooltip dt {
+  color: #94a3b8;
+}
+
+.ai-tooltip dd {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Latest snapshot meter */
+
+.ai-meter {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.ai-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #34d399;
+  transform-origin: left;
+  animation: aiGrow 900ms cubic-bezier(0.23, 1, 0.32, 1) 350ms both;
+}
+
+/* Period timeline */
+
+.ai-timeline-row {
+  display: grid;
+  grid-template-columns: 34px 1fr 150px;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-timeline-label {
+  color: #7c879b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-timeline-track {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.ai-timeline-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: #34d399;
+  transform-origin: left;
+  animation: aiGrow 800ms cubic-bezier(0.23, 1, 0.32, 1) 500ms both;
+}
+
+.ai-timeline-track:hover .ai-timeline-bar {
+  background: #6ee7b7;
+}
+
+.ai-timeline-value {
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ai-timeline-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 162px 0 46px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  color: #7c879b;
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .ai-timeline-row {
+    grid-template-columns: 28px 1fr 64px;
+    gap: 8px;
+  }
+
+  .ai-timeline-value span {
+    display: none;
+  }
+
+  .ai-timeline-axis {
+    margin: 10px 72px 0 36px;
+  }
+}
+
+@keyframes aiGrow {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes aiFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+    filter: blur(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-report-card,
+  .ai-report-overview,
+  .ai-report-note,
+  .ai-stat-tile,
+  .ai-chart-card,
+  .ai-meter-fill,
+  .ai-timeline-bar {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  .ai-report-card {
+    transition: none;
+  }
+}

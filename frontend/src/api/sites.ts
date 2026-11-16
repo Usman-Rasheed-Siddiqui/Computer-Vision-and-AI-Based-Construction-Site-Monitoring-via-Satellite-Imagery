@@ -63,6 +63,7 @@ export const updateSiteMetadata = async (
     is_completed?: boolean
     is_public?: boolean
     start_date?: string
+    end_date?: string | null
   }
 ) => {
   const response = await api.patch<{ message: string }>(`/sites/${siteId}/update/`, payload)

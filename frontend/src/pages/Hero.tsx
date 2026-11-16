@@ -2,12 +2,26 @@
 import { useNavigate } from 'react-router-dom';
 import DashboardNav from '../components/DashboardNav';
 
-const BAR_HEIGHTS = [
-  23, 40, 53, 40, 33, 14, 7, 17, 75, 65,
-  88, 75, 65, 47, 33, 88, 4, 7, 9, 14,
-  95, 65, 79, 37, 7, 40, 17, 20, 62, 47,
-  92, 72,
-];
+// Sample data for the preview card. It follows the same rules as the real
+// Site Progress card: one bar per completed analysis, the bar is the area that
+// looked different between two satellite images, and the percentage is that
+// area as a share of the monitored site (500 m x 500 m here).
+const SITE_AREA_SQM = 250000;
+const SAMPLE_START_DATE = '12 Jan 2026';
+
+const SAMPLE_ANALYSES = [
+  { date: '10 Feb 2026', percent: 0.9 },
+  { date: '12 Mar 2026', percent: 1.6 },
+  { date: '09 Apr 2026', percent: 1.4 },
+  { date: '14 May 2026', percent: 2.3 },
+  { date: '11 Jun 2026', percent: 2.8 },
+  { date: '09 Jul 2026', percent: 3.4 },
+  { date: '13 Aug 2026', percent: 3.1 },
+  { date: '10 Sep 2026', percent: 3.9 },
+].map((item) => ({
+  ...item,
+  area: Math.round((item.percent / 100) * SITE_AREA_SQM),
+}));
 
 function Animate({
   children,
@@ -39,65 +53,65 @@ function Animate({
 }
 
 function ProgressCard() {
-  const maxHeight = Math.max(...BAR_HEIGHTS);
+  const maxArea = Math.max(...SAMPLE_ANALYSES.map((item) => item.area), 1);
+
+  const latest = SAMPLE_ANALYSES[SAMPLE_ANALYSES.length - 1];
+  const previous = SAMPLE_ANALYSES[SAMPLE_ANALYSES.length - 2];
 
   return (
     <Animate delay={900} direction="scale" className="w-full max-w-[405px] mx-auto lg:mx-0">
       <div className="w-full rounded-[24px] sm:rounded-[33px] bg-[rgba(10,20,35,0.6)] backdrop-blur-[20px] border border-[#15803D]/20 p-5 sm:p-8 pb-5 sm:pb-6">
-        
-        <p className="text-white text-[16px] sm:text-[20px] font-[450] leading-[20px] mb-3 sm:mb-4">
-          Site Progress
-        </p>
 
-        <p className="mb-2 sm:mb-3">
-          <span className="text-white text-[28px] sm:text-[46px] font-[450] leading-[1]">8,450</span>
-          <span className="text-white/40 text-[28px] sm:text-[46px] font-[450] leading-[1]"> sq m</span>
-        </p>
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <p className="text-white text-[16px] sm:text-[20px] font-[450] leading-[20px]">
+            Site Progress
+          </p>
 
-        <div className="flex items-center gap-[10px] mb-6 sm:mb-8">
-          <span className="px-[6px] py-[7px] bg-[#15803D]/30 rounded-[6px] text-[#4ADE80] text-[12px] sm:text-[14px] font-[450] leading-[14px]">
-            +12.4% change
-          </span>
-          <span className="text-white/80 text-[12px] sm:text-[14px] font-[450] leading-[14px] opacity-70">
-            vs. previous scan (7,515 sq m)
+          <span className="rounded-full border border-white/15 px-[9px] py-[3px] text-[9px] sm:text-[10px] font-[450] uppercase tracking-[0.12em] text-white/50">
+            Sample
           </span>
         </div>
 
-        <div className="relative">
-          <div className="flex items-end gap-[1.5px] h-[80px] sm:h-[100px]">
-            {BAR_HEIGHTS.map((h, i) => {
-              const isProjected = i >= 28;
-              const heightPercent = (h / maxHeight) * 100;
+        <p className="mb-2 sm:mb-3">
+          <span className="text-white text-[28px] sm:text-[46px] font-[450] leading-[1]">
+            {latest.area.toLocaleString('en-US')}
+          </span>
+          <span className="text-white/40 text-[28px] sm:text-[46px] font-[450] leading-[1]"> m²</span>
+        </p>
+
+        <div className="flex flex-wrap items-center gap-[10px] mb-6 sm:mb-8">
+          <span className="px-[6px] py-[7px] bg-[#15803D]/30 rounded-[6px] text-[#4ADE80] text-[12px] sm:text-[14px] font-[450] leading-[14px]">
+            {latest.percent}% change detected
+          </span>
+          <span className="text-white/80 text-[12px] sm:text-[14px] font-[450] leading-[14px] opacity-70">
+            previous result: {previous.area.toLocaleString('en-US')} m²
+          </span>
+        </div>
+
+        <div>
+          <div className="flex items-end gap-[5px] sm:gap-[7px] h-[80px] sm:h-[100px]">
+            {SAMPLE_ANALYSES.map((item, i) => {
+              const isLatest = i === SAMPLE_ANALYSES.length - 1;
+              const heightPercent = Math.max((item.area / maxArea) * 100, 3);
+
               return (
                 <div
-                  key={i}
-                  className="flex-1 rounded-[0.5px] animate-bar-grow origin-bottom"
+                  key={item.date}
+                  className="flex-1 rounded-t-[3px] animate-bar-grow origin-bottom"
                   style={{
                     height: `${heightPercent}%`,
-                    backgroundColor: isProjected ? 'rgba(74,222,128,0.2)' : '#4ADE80',
-                    animationDelay: `${1100 + i * 30}ms`,
+                    backgroundColor: isLatest ? '#4ADE80' : 'rgba(74,222,128,0.45)',
+                    boxShadow: isLatest ? '0 0 12px rgba(74,222,128,0.25)' : undefined,
+                    animationDelay: `${1100 + i * 60}ms`,
                   }}
                 />
               );
             })}
           </div>
 
-          <div className="absolute inset-0 pointer-events-none">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="absolute top-0 bottom-0 w-px bg-white/10"
-                style={{ left: `${((i + 1) / 5) * 100}%` }}
-              />
-            ))}
-          </div>
-
-          <div className="flex justify-between mt-3 text-[9px] sm:text-[10px] font-[450] leading-[10px] text-white/80">
-            {['10:00', '12:00', '14:00', '16:00', '16:00'].map((time, i) => (
-              <span key={i} style={{ opacity: i >= 3 ? 0.4 : 1 }}>
-                {time}
-              </span>
-            ))}
+          <div className="flex justify-between mt-3 text-[9px] sm:text-[10px] font-[450] leading-[10px] text-white/50">
+            <span>{SAMPLE_ANALYSES[0].date}</span>
+            <span>{latest.date}</span>
           </div>
         </div>
       </div>
@@ -139,10 +153,10 @@ export default function Hero() {
 
               <Animate delay={700} direction="up">
                 <div className="flex flex-wrap gap-3 sm:gap-4">
-                  <button onClick={() => navigate('/construction-site')} className="h-[46px] sm:h-[51px] px-5 sm:px-[27px] bg-[#15803D] rounded-[12px] text-white text-[14px] sm:text-[15.5px] font-[450] leading-[15.5px] transition-opacity hover:opacity-90">
+                  <button onClick={() => navigate('/construction-site/register')} className="h-[46px] sm:h-[51px] px-5 sm:px-[27px] bg-[#15803D] rounded-[12px] text-white text-[14px] sm:text-[15.5px] font-[450] leading-[15.5px] transition-opacity hover:opacity-90">
                     Register Site
                   </button>
-                  <button onClick={() => navigate('/member-request')} className="h-[46px] sm:h-[51px] px-5 sm:px-[27px] rounded-[12px] border border-[#15803D] bg-[#15803D]/10 text-white text-[14px] sm:text-[15.5px] font-[450] leading-[15.5px] transition-opacity hover:bg-[#15803D]/20">
+                  <button onClick={() => navigate('/construction-site/member-request')} className="h-[46px] sm:h-[51px] px-5 sm:px-[27px] rounded-[12px] border border-[#15803D] bg-[#15803D]/10 text-white text-[14px] sm:text-[15.5px] font-[450] leading-[15.5px] transition-opacity hover:bg-[#15803D]/20">
                     Join Live Site
                   </button>
                 </div>

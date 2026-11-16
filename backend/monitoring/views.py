@@ -11,6 +11,12 @@ from monitoring.models import Users
 from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
 
+import hashlib
+import os
+import time
+from django.core.cache import cache
+
+
 import json
 import uuid
 import logging
@@ -28,7 +34,7 @@ import math
 from decimal import Decimal
 from django.utils import timezone
 
-from .gemini_service import generate_site_ai_analysis
+from .gemini_service import generate_site_ai_analysis, build_progress_stats
 
 from .models import (
     Users,
@@ -131,6 +137,7 @@ class SiteListCreateView(generics.ListCreateAPIView):
             user_site_id=uuid.uuid4(),
             user=profile,
             construction=site,
+            granted_at=timezone.now(),
         )
 
         return Response(
@@ -226,7 +233,7 @@ def my_join_requests(request):
         request_from=profile,
         request_to=site.created_by,
         construction=site,
-        status="pending",
+        status="PENDING",
     )
     return Response(
         SiteAccessRequestSerializer(access_request).data,
@@ -278,11 +285,14 @@ def decide_access_request(request, request_id):
         UserSite.objects.get_or_create(
             user=access_request.request_from,
             construction=access_request.construction,
-            defaults={"user_site_id": uuid.uuid4()},
+            defaults={
+                "user_site_id": uuid.uuid4(),
+                "granted_at": timezone.now(),
+                }
         )
-        access_request.status = "accepted"
+        access_request.status = "APPROVED"
     else:
-        access_request.status = "rejected"
+        access_request.status = "REJECTED"
 
     access_request.save(update_fields=["status"])
 
@@ -407,9 +417,10 @@ class ConfirmRegisterSiteView(APIView):
                         (
                             user_site_id,
                             user_id,
-                            construction_id
+                            construction_id,
+                            granted_at
                         )
-                        VALUES (%s, %s, %s);
+                        VALUES (%s, %s, %s, now());
                     """, [
                         uuid.uuid4(),
                         profile.user_id,
@@ -455,7 +466,7 @@ def update_site_metadata(request, site_id):
 
     # Validate that the site exists AND the current user created it
     site = get_object_or_404(ConstructionSites, construction_id=site_id)
-    
+
     if site.created_by_id != profile.user_id:
         return Response(
             {"detail": "You do not have permission to edit this site. Only the creator can modify these details."},
@@ -467,6 +478,47 @@ def update_site_metadata(request, site_id):
     is_completed = request.data.get("is_completed")
     is_public = request.data.get("is_public")
 
+    # Dates: returns (was_sent, value, error_message). An empty value means "clear it".
+    def read_date(field):
+        if field not in request.data:
+            return False, None, None
+        raw = request.data.get(field)
+        if raw in (None, ""):
+            return True, None, None
+        try:
+            return True, date.fromisoformat(str(raw)), None
+        except ValueError:
+            return True, None, f"{field} must be in YYYY-MM-DD format."
+
+    start_sent, start_value, start_error = read_date("start_date")
+    end_sent, end_value, end_error = read_date("end_date")
+
+    for error in (start_error, end_error):
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    if start_sent and start_value is None:
+        return Response(
+            {"detail": "The construction start date cannot be empty."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if start_value and start_value > date.today():
+        return Response(
+            {"detail": "The construction start date cannot be in the future."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Compare using the new value if it was sent, otherwise the saved one
+    effective_start = start_value if start_sent else site.start_date
+    effective_end = end_value if end_sent else getattr(site, "end_date", None)
+
+    if effective_start and effective_end and effective_end < effective_start:
+        return Response(
+            {"detail": "The construction end date cannot be before the start date."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     # Build the dynamic SQL update query
     update_fields = []
     params = []
@@ -474,14 +526,22 @@ def update_site_metadata(request, site_id):
     if area is not None:
         update_fields.append("area = %s")
         params.append(area if area != "" else None)
-        
+
     if is_completed is not None:
         update_fields.append("is_completed = %s")
         params.append(bool(is_completed))
-        
+
     if is_public is not None:
         update_fields.append("is_public = %s")
         params.append(bool(is_public))
+
+    if start_sent:
+        update_fields.append("start_date = %s")
+        params.append(start_value)
+
+    if end_sent:
+        update_fields.append("end_date = %s")
+        params.append(end_value)  # None removes the end date
 
     if not update_fields:
         return Response({"detail": "No valid fields provided for update."}, status=status.HTTP_400_BAD_REQUEST)
@@ -497,11 +557,10 @@ def update_site_metadata(request, site_id):
         with connection.cursor() as cursor:
             with transaction.atomic():
                 cursor.execute(query, params)
-                
+
         return Response({"message": "Site updated successfully."}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 
 class TestChangeDetectionView(generics.GenericAPIView):
@@ -975,11 +1034,17 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
 logger = logging.getLogger(__name__)
 
 
-class SiteAIAnalysisView(generics.GenericAPIView):
+# How long a generated AI report is reused before Gemini is asked again.
+AI_ANALYSIS_CACHE_SECONDS = 60 * 60 * 24
+
+
+class SiteAIAnalysisView(APIView):
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request, site_id):
+
+        started = time.perf_counter()
 
         # 1. Identify the authenticated user's profile
         profile = get_profile_user(request)
@@ -999,8 +1064,7 @@ class SiteAIAnalysisView(generics.GenericAPIView):
             construction_id=site_id
         )
 
-        # 3. Retrieve only this user's completed analyses
-        # Keep the most recent 50 records to limit the AI input size.
+        # 3. Retrieve only this user's completed analyses (most recent 50)
         logs = list(
             ProgressLogs.objects.filter(
                 construction_id=site.construction_id,
@@ -1010,7 +1074,7 @@ class SiteAIAnalysisView(generics.GenericAPIView):
             .order_by("-satellite_image_date", "-processed_at")[:50]
         )
 
-        # Present records in chronological order to Gemini
+        # Chronological order for the charts and for Gemini
         logs.reverse()
 
         if not logs:
@@ -1025,40 +1089,108 @@ class SiteAIAnalysisView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 4. Generate AI analysis
-        try:
+        # 4. Chart data and headline numbers: pure Python, takes milliseconds
+        stats = build_progress_stats(site, logs)
 
-            ai_analysis = generate_site_ai_analysis(
-                site=site,
-                progress_logs=logs
-            )
+        # 5. Narrative: reuse the cached one unless the records changed
+        fingerprint = hashlib.sha256(
+            "|".join(
+                [
+                    str(site.construction_id),
+                    str(profile.user_id),
+                    os.getenv("GEMINI_MODEL", ""),
+                    str(site.is_completed),
+                ]
+                + [f"{log.progress_id}:{log.processed_at}" for log in logs]
+            ).encode()
+        ).hexdigest()
 
-            # 5. Return the result without saving it to the database
-            return Response(
-                {
-                    "status": "success",
-                    "site_id": str(site.construction_id),
-                    "site_name": site.site_name,
-                    "records_analyzed": len(logs),
-                    "analysis": ai_analysis
-                },
-                status=status.HTTP_200_OK
-            )
+        cache_key = f"site-ai-analysis:{fingerprint}"
+        force = str(request.data.get("force", "")).lower() in ("true", "1")
 
-        except Exception:
+        cached = None if force else cache.get(cache_key)
 
-            logger.exception(
-                "Gemini AI analysis failed for site %s",
-                site_id
-            )
+        ai_analysis = None
+        ai_error = None
+        generated_at = None
 
-            return Response(
-                {
-                    "status": "error",
-                    "detail": (
-                        "Unable to generate the AI analysis. "
-                        "Please try again later."
-                    )
-                },
-                status=status.HTTP_502_BAD_GATEWAY
-            )
+        if cached:
+            ai_analysis = cached["analysis"]
+            generated_at = cached["generated_at"]
+        else:
+            try:
+                ai_analysis = generate_site_ai_analysis(
+                    site=site,
+                    progress_logs=logs,
+                    stats=stats
+                )
+                generated_at = timezone.now().isoformat()
+
+                cache.set(
+                    cache_key,
+                    {"analysis": ai_analysis, "generated_at": generated_at},
+                    AI_ANALYSIS_CACHE_SECONDS
+                )
+
+            except Exception:
+                logger.exception(
+                    "Gemini AI analysis failed for site %s",
+                    site_id
+                )
+                ai_error = (
+                    "The written AI summary could not be generated in time. "
+                    "Your charts are shown below. Please try again shortly."
+                )
+
+        return Response(
+            {
+                "status": "success" if ai_analysis else "partial",
+                "site_id": str(site.construction_id),
+                "site_name": site.site_name,
+                "records_analyzed": len(logs),
+                "cached": bool(cached),
+                "generated_at": generated_at,
+                "elapsed_seconds": round(time.perf_counter() - started, 2),
+                "stats": stats["summary"],
+                "chart_points": stats["points"],
+                "analysis": ai_analysis,
+                "ai_error": ai_error
+            },
+            status=status.HTTP_200_OK
+        )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def site_lookup(request, site_id):
+    """Show a site's name and location so a user can confirm it before requesting access."""
+    profile = get_profile_user(request)
+    if not profile:
+        return Response({"detail": "User profile not found."},
+                        status=status.HTTP_403_FORBIDDEN)
+
+    site = ConstructionSites.objects.filter(construction_id=site_id).first()
+    if not site:
+        return Response({"detail": "Not found."},
+                        status=status.HTTP_404_NOT_FOUND)
+
+    if site.created_by_id == profile.user_id:
+        relationship = "owner"
+    elif UserSite.objects.filter(user=profile, construction=site).exists():
+        relationship = "member"
+    elif SiteAccessRequest.objects.filter(
+        request_from=profile,
+        construction=site,
+        status__iexact="PENDING",
+    ).exists():
+        relationship = "pending"
+    else:
+        relationship = None
+
+    return Response({
+        "site_id": str(site.construction_id),
+        "site_name": site.site_name,
+        "location": site.location,
+        "city": site.city,
+        "country": site.country,
+        "relationship": relationship,
+    })

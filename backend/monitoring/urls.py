@@ -67,4 +67,15 @@ urlpatterns = [
         name="site-progress-analyze"
     ),
 
+    path(
+        "sites/<uuid:site_id>/ai-analysis/generate/",
+        views.SiteAIAnalysisView.as_view(),
+        name="site-ai-analysis"
+    ),
+
+    path(
+        'sites/lookup/<uuid:site_id>/',
+        views.site_lookup,
+        name='site-lookup'
+    ),
 ]
