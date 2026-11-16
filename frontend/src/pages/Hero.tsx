@@ -1,5 +1,6 @@
 ﻿import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import DashboardNav from '../components/DashboardNav';
 
 // Sample data for the preview card. It follows the same rules as the real
@@ -7,7 +8,6 @@ import DashboardNav from '../components/DashboardNav';
 // looked different between two satellite images, and the percentage is that
 // area as a share of the monitored site (500 m x 500 m here).
 const SITE_AREA_SQM = 250000;
-const SAMPLE_START_DATE = '12 Jan 2026';
 
 const SAMPLE_ANALYSES = [
   { date: '10 Feb 2026', percent: 0.9 },
@@ -139,6 +139,16 @@ export default function Hero() {
           <div className="w-full max-w-[1800px] mx-auto px-5 sm:px-8 md:px-[82px] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-10 lg:gap-12">
             
             <div className="max-w-[593px]">
+              <Animate delay={100} direction="up">
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors mb-5"
+                >
+                  <ArrowLeft size={16} />
+                  Back to Landing Page
+                </Link>
+              </Animate>
+
               <Animate delay={300} direction="up">
                 <h1 className="text-white text-[36px] sm:text-[52px] md:text-[64px] lg:text-[72px] font-normal leading-[0.95] mb-5 sm:mb-8">
                   Automated satellite intelligence for construction

@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'motion/react';
+import { Link } from 'react-router-dom';
 
 // Standardized inline SVGs to replace lucide-react brand icons
 const SocialIcons = {
@@ -69,21 +70,14 @@ export default function FooterParallax() {
               <div className="flex flex-col sm:flex-row gap-10 md:gap-16">
                 <div className="flex flex-col gap-4">
                   <h4 className="uppercase tracking-widest text-sm font-bold text-gray-900">Platform</h4>
-                  <a href="#change-detection" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Change Detection</a>
-                  <a href="#ai-analysis" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">AI Insights</a>
-                  <a href="#reports" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">PDF Reports</a>
+                  <Link to="/construction-site/member" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Change Detection</Link>
+                  <Link to="/construction-site/member" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">AI Insights</Link>
                 </div>
                 
                 <div className="flex flex-col gap-4">
                   <h4 className="uppercase tracking-widest text-sm font-bold text-gray-900">Access</h4>
-                  <a href="#register" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Site Registration</a>
-                  <a href="#dashboard" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Member Dashboard</a>
-                </div>
-
-                <div className="flex flex-col gap-4">
-                  <h4 className="uppercase tracking-widest text-sm font-bold text-gray-900">Legal</h4>
-                  <a href="#privacy" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Private Data</a>
-                  <a href="#consent" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">User Consent</a>
+                  <Link to="/construction-site/register" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Site Registration</Link>
+                  <Link to="/construction-site/member" className="text-gray-500 font-medium hover:text-blue-600 transition-colors">Member Dashboard</Link>
                 </div>
               </div>
             </div>

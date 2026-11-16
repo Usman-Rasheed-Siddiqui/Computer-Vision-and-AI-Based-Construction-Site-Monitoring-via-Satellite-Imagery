@@ -3,6 +3,8 @@ import Navbar from './components/Navbar';
 import AboutSection from './components/AboutSection';
 import FeaturesSection from './components/FeaturesSection';
 import FooterParallax from './components/FooterParallax';
+import FeaturesPage from './pages/FeaturesPage';
+import FAQPage from './pages/FAQPage';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import Hero from './pages/Hero';
@@ -79,6 +81,8 @@ export default function App() {
       <Routes>
         {/* Landing page — always public */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/faq" element={<FAQPage />} />
 
         {/* Public-only routes: redirect to /dashboard if already logged in */}
         <Route element={<PublicRoute />}>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,9 +22,8 @@ export default function Navbar() {
       </div>
 
       <div className={`mt-4 bg-slate-900 border border-slate-700 rounded-2xl p-4 shadow-2xl flex flex-col gap-2 min-w-[200px] transition-all duration-300 ease-out origin-top ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-4 pointer-events-none'}`}>
-        <a href="#features" className="text-slate-300 hover:text-emerald-400 font-medium text-sm px-4 py-2 hover:bg-slate-800 rounded-lg transition-colors">Features</a>
-        <a href="#ai" className="text-slate-300 hover:text-blue-400 font-medium text-sm px-4 py-2 hover:bg-slate-800 rounded-lg transition-colors">Vision AI</a>
-        <a href="#faq" className="text-slate-300 hover:text-white font-medium text-sm px-4 py-2 hover:bg-slate-800 rounded-lg transition-colors">FAQ</a>
+        <Link to="/features" className="text-slate-300 hover:text-emerald-400 font-medium text-sm px-4 py-2 hover:bg-slate-800 rounded-lg transition-colors">Features</Link>
+        <Link to="/faq" className="text-slate-300 hover:text-white font-medium text-sm px-4 py-2 hover:bg-slate-800 rounded-lg transition-colors">FAQ</Link>
       </div>
     </div>
   );

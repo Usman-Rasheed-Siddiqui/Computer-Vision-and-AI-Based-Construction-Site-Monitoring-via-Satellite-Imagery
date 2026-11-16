@@ -1,5 +1,3 @@
-import React from 'react';
-import { Mail, Plus } from 'lucide-react';
 
 export default function AboutSection() {
   return (
@@ -8,22 +6,6 @@ export default function AboutSection() {
         <p className="text-slate-300 text-base md:text-lg text-center leading-relaxed max-w-lg">
           We craft systems that scale with your project. Designed to seamlessly track construction progress globally without replacing physical safety inspections.
         </p>
-        
-        <div className="flex flex-wrap justify-center gap-4 mt-8">
-          <button className="bg-blue-600 text-white rounded-full flex items-center pr-5 pl-1 py-1 group hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20">
-            <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-3">
-              <Mail size={16} className="text-blue-600" />
-            </span>
-            <span className="uppercase tracking-wide font-medium text-xs">Say hello</span>
-          </button>
-          
-          <button className="bg-slate-800 text-emerald-400 border border-slate-700 rounded-full flex items-center pr-5 pl-1 py-1 group hover:bg-slate-700 transition-colors">
-            <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center mr-3">
-              <Plus size={16} className="text-white" />
-            </span>
-            <span className="uppercase tracking-wide font-medium text-xs text-white">Stay informed</span>
-          </button>
-        </div>
       </div>
 
       <div className="w-full flex items-center justify-center my-20">

@@ -451,7 +451,7 @@ export default function MonitorSite() {
               </div>
 
               <h2 className="text-2xl font-bold text-white mb-3">
-                Running AI Analysis
+                Monitoring
               </h2>
 
               <p className="text-sm text-slate-400 max-w-md">
@@ -690,7 +690,7 @@ export default function MonitorSite() {
                   }}
                   className="px-6 py-3 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-colors"
                 >
-                  Run Another Analysis
+                  Monitor Again
                 </button>
 
                 <Link

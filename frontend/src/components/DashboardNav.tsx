@@ -36,7 +36,7 @@ function Animate({
 // ─── Nav links config ─────────────────────────────────────────────────────────
 const NAV_LINKS = [
   { label: 'Construction Site', href: '/construction-site' },
-  { label: 'Members & Requests', href: '/member-request' },
+  { label: 'Members & Requests', href: '/construction-site/member-request' },
 ];
 
 // ─── Shared Dashboard Navbar ──────────────────────────────────────────────────
