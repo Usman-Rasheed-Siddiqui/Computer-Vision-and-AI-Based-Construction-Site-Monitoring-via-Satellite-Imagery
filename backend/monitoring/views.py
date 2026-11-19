@@ -52,6 +52,14 @@ from .serializers import (
     ProgressAnalysisRequestSerializer,
 )
 
+from .image_cache import (
+         settings_tag,
+         release_date_for,
+         find_cached_analysis,
+         load_cached_analysis,
+         run_housekeeping_if_due,
+     )
+
 from monitoring.image_retrieval.image_retrieval import get_image, upload_temporary_preview, supabase, BUCKET_NAME
 CHANGE_DETECTION_THRESHOLD = 0.03
 
@@ -807,15 +815,86 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
 
         progress_log = None
 
+        # Fingerprint of the processing settings; part of the storage folder name
+        # so a result is only reused when the settings are unchanged.
+        settings_fingerprint = settings_tag(threshold, extent_meters)
+
         # Unique storage folder for this analysis
         storage_folder = (
             f"{profile.user_id}-"
             f"{site.construction_id}-"
-            f"{progress_id}"
+            f"{progress_id}-"
+            f"{settings_fingerprint}"
         )
 
-        try:
+        # Housekeeping: delete images older than 10 days (NFR SCA-02)
+        run_housekeeping_if_due()
 
+        # Reuse a stored result of the same comparison (same site, same imagery
+        # releases, same settings) that is less than 10 days old.
+        earlier_release = release_date_for(earlier_target_date)
+        later_release = release_date_for(later_target_date)
+
+        cached_log = None
+        if earlier_release and later_release and earlier_release < later_release:
+            cached_log = find_cached_analysis(
+                site,
+                date.fromisoformat(earlier_release),
+                date.fromisoformat(later_release),
+                settings_fingerprint,
+            )
+
+        if cached_log:
+            try:
+                cached = load_cached_analysis(cached_log, latitude, extent_meters)
+                total_site_area = Decimal(extent_meters) ** 2
+
+                return Response(
+                    {
+                        "status": "success",
+                        "message": "Loaded your stored analysis for these dates.",
+                        "from_cache": True,
+
+                        "progress": ProgressLogSerializer(cached_log).data,
+
+                        "analysis": {
+                            "analysis_mode": analysis_mode,
+                            "threshold": threshold,
+
+                            "requested_dates": {
+                                "earlier_date": str(earlier_target_date),
+                                "later_date": str(later_target_date)
+                            },
+
+                            "actual_image_dates": {
+                                "earlier_date": str(cached_log.earlier_date),
+                                "later_date": str(cached_log.later_date)
+                            },
+
+                            "area_changed_sqm": round(cached_log.area_changed_sqm, 5),
+                            "change_percentage": round(cached_log.change_percentage, 5),
+
+                            "changed_pixels": cached["changed_pixels"],
+                            "total_pixels": cached["total_pixels"],
+
+                            "site_area_sqm": total_site_area
+                        },
+
+                        "images": cached["images"],
+
+                        "satellite_metadata": {
+                            "earlier": cached["earlier_info"],
+                            "later": cached["later_info"]
+                        }
+                    },
+                    status=status.HTTP_200_OK
+                )
+            except Exception:
+                import traceback
+                traceback.print_exc()
+                # Stored files unreadable: fall through and process normally.
+
+        try:
             # 1. Retrieve earlier satellite image
             earlier_image, earlier_info = get_image(
                 target_date=earlier_target_date.isoformat(),

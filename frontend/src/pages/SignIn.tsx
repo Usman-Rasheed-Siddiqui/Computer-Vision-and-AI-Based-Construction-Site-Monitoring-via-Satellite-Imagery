@@ -127,11 +127,6 @@ export default function SignIn() {
           </p>
         </div>
 
-        <div className="flex justify-center gap-6 text-xs text-gray-400 pt-8">
-          <a href="#" className="hover:text-gray-600">Terms</a>
-          <a href="#" className="hover:text-gray-600">Privacy</a>
-          <a href="#" className="hover:text-gray-600">Support</a>
-        </div>
       </main>
     </div>
   );

@@ -115,7 +115,64 @@ Optional tuning (defaults shown, add to `.env` only if you want to change them):
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. **Storage:** create a bucket named exactly `temporary-site-previews`. The backend uses it for temporary satellite previews while a site is being registered.
-3. **Database tables:** the application's own tables (sites, site members, access requests, analysis records) must exist in your Supabase database. Create them from the project's schema before first use.
+3. **Database tables:** the application's own tables must exist in your Supabase database before first use. See [Creating the database tables](#creating-the-database-tables) below.
+
+### Creating the database tables
+
+The project uses these tables:
+
+| Table | Purpose |
+|-------|---------|
+| `users` | Application users (email, password hash, full name) |
+| `construction_sites` | Registered sites (name, location, coordinates, dates, progress) |
+| `user_site` | Which users have access to which site |
+| `site_access_request` | Access requests between users (`PENDING`, `APPROVED`, `REJECTED`) |
+| `progress_logs` | One row per completed change-detection analysis |
+
+Plus Django's built-in tables (`auth_*`, `django_*`).
+
+**Step 1: Django's built-in tables.** With the virtual environment active (see [Run the backend](#3-run-the-backend)):
+
+```bash
+cd backend
+python manage.py migrate
+```
+
+**Step 2: the five project tables.** `monitoring/models.py` was generated *from* an existing database with Django's `inspectdb` command (`python manage.py inspectdb`), and every model is marked `managed = False`. That means Django reads these tables but **never creates them**, so `migrate` alone will not make them. Pick one option:
+
+**Option A: from a schema file (recommended).** The exact schema, including constraints, lives in the original Supabase database. Export it once and commit it as `schema.sql`:
+
+```bash
+# on the machine that has the working database
+pg_dump "postgresql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:5432/postgres" \
+  --schema-only --no-owner --no-privileges \
+  -t users -t construction_sites -t user_site -t site_access_request -t progress_logs \
+  > schema.sql
+```
+
+Anyone setting up a new project then opens **Supabase → SQL Editor**, pastes the contents of `schema.sql`, and clicks **Run**.
+
+**Option B: let Django create them from `models.py`.**
+
+1. In `backend/monitoring/models.py`, remove `managed = False` from these five models only: `Users`, `ConstructionSites`, `ProgressLogs`, `SiteAccessRequest`, `UserSite`. Delete the other generated classes (`Auth*`, `Django*`), because Django already manages those tables.
+2. Make sure `backend/monitoring/migrations/` is **not** in `.gitignore`, then run:
+
+```bash
+python manage.py makemigrations monitoring
+python manage.py migrate
+```
+
+3. Add the database rule the app depends on for access requests. Run this in the Supabase SQL Editor:
+
+```sql
+ALTER TABLE site_access_request
+  ADD CONSTRAINT site_access_request_status_check
+  CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'));
+```
+
+Option B only recreates what `models.py` describes. Database-side defaults and extra constraints from the original database are not part of it, so Option A is the more reliable way to get an identical database.
+
+To check everything is wired up, run `python manage.py runserver`, then sign up and register a site in the app.
 
 ## 3. Run the backend
 
@@ -169,6 +226,20 @@ Other scripts:
 npm run build     # type-check and create a production build in dist/
 npm run preview   # serve the production build locally
 npm run lint      # run ESLint
+```
+
+## Automatic 10-day image clean-up
+
+Analysis images (baseline, latest, change mask, overlay) and site previews are kept in Supabase Storage for **up to 10 days** (NFR SCA-02). A repeat of the same comparison within that time reuses the stored images instead of downloading and processing them again. After 10 days:
+
+- the files are deleted from storage, and their references in `progress_logs` are cleared;
+- the numeric results (area, percentage, dates) are kept, so charts and history still work.
+
+The clean-up runs by itself every hour while the backend is running (and also at most every 30 minutes when an analysis starts). To change or disable the hourly timer, set `IMAGE_CLEANUP_INTERVAL_MINUTES` in `.env` (`0` turns it off). You can also run it manually, or from a daily scheduled task:
+
+```bash
+cd backend
+python manage.py purge_expired_images
 ```
 
 ## Using the app
