@@ -11,6 +11,10 @@ How it works
   folder name, so a change of settings or model never matches an old result.
 * If a matching result is younger than IMAGE_CACHE_DAYS, its stored images are
   loaded again instead of downloading satellite tiles and re-running the model.
+  No new row is written in that case.
+* Within IMAGE_CACHE_DAYS there is only ever one row per comparison (site +
+  both release dates). If it cannot be reused (images missing, settings or
+  model changed), the analysis runs again and overwrites that same row.
 * Images older than IMAGE_CACHE_DAYS are deleted from storage and their
   references cleared. The numeric results (area, percentage, dates) stay in
   the database, so progress charts and history keep working.
@@ -18,6 +22,7 @@ How it works
 import hashlib
 import io
 from datetime import timedelta
+from functools import lru_cache
 from pathlib import Path
 
 from django.db.models import Q
@@ -39,15 +44,46 @@ IMAGE_FIELDS = (
 )
 
 
+@lru_cache(maxsize=1)
+def _model_fingerprint() -> str:
+    """
+    Content hash of the model checkpoint, computed once per process.
+    (The file's modified time is not used: it changes on every checkout or
+    copy, which made every stored result look stale.)
+    """
+    try:
+        digest = hashlib.sha1()
+        with _CHECKPOINT.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()[:12]
+    except OSError:
+        return "nomodel"
+
+
 def settings_tag(threshold, extent_meters) -> str:
     """Short fingerprint of everything that changes a result besides the imagery."""
+    raw = f"{threshold}|{extent_meters}|{_model_fingerprint()}"
+    return hashlib.sha1(raw.encode()).hexdigest()[:8]
+
+
+def _legacy_settings_tag(threshold, extent_meters) -> str | None:
+    """Fingerprint used before the content hash (size + modified time)."""
     try:
         stat = _CHECKPOINT.stat()
-        model_part = f"{stat.st_size}-{int(stat.st_mtime)}"
     except OSError:
-        model_part = "nomodel"
-    raw = f"{threshold}|{extent_meters}|{model_part}"
+        return None
+    raw = f"{threshold}|{extent_meters}|{stat.st_size}-{int(stat.st_mtime)}"
     return hashlib.sha1(raw.encode()).hexdigest()[:8]
+
+
+def accepted_tags(threshold, extent_meters) -> set[str]:
+    """Fingerprints a stored result may carry and still be reused."""
+    tags = {settings_tag(threshold, extent_meters)}
+    legacy = _legacy_settings_tag(threshold, extent_meters)
+    if legacy:
+        tags.add(legacy)
+    return tags
 
 
 def release_date_for(target_date) -> str | None:
@@ -58,8 +94,12 @@ def release_date_for(target_date) -> str | None:
         return None
 
 
-def find_cached_analysis(site, earlier_release_date, later_release_date, tag):
-    """Newest completed analysis of this exact comparison whose images are still stored."""
+def find_recent_comparison(site, earlier_release_date, later_release_date):
+    """
+    Newest completed analysis of this site for the same two imagery releases,
+    processed within the last IMAGE_CACHE_DAYS. Only one row per comparison is
+    kept in that window: a repeat either reuses this row or overwrites it.
+    """
     cutoff = timezone.now() - timedelta(days=IMAGE_CACHE_DAYS)
     return (
         ProgressLogs.objects.filter(
@@ -68,16 +108,39 @@ def find_cached_analysis(site, earlier_release_date, later_release_date, tag):
             later_date=later_release_date,
             status="completed",
             processed_at__gte=cutoff,
-            baseline_image_filename__endswith=f"-{tag}/baseline.jpg",
-            latest_image_filename__isnull=False,
-            change_mask_filename__isnull=False,
-            overlay_image_filename__isnull=False,
-            area_changed_sqm__isnull=False,
-            change_percentage__isnull=False,
         )
         .order_by("-processed_at")
         .first()
     )
+
+
+def can_reuse(log, tags) -> bool:
+    """True when the row has all its images and was made with the same settings."""
+    return bool(
+        log
+        and all(getattr(log, field) for field in IMAGE_FIELDS)
+        and log.area_changed_sqm is not None
+        and log.change_percentage is not None
+        and any(
+            log.baseline_image_filename.endswith(f"-{tag}/baseline.jpg")
+            for tag in tags
+        )
+    )
+
+
+def stored_paths(log) -> list[str]:
+    """Storage paths of the images a row points to."""
+    return [getattr(log, field) for field in IMAGE_FIELDS if getattr(log, field)]
+
+
+def remove_files(paths) -> None:
+    """Delete storage files; never raises (the 10-day sweep is the fallback)."""
+    if not paths or not supabase:
+        return
+    try:
+        supabase.storage.from_(BUCKET_NAME).remove(list(paths))
+    except Exception as error:
+        print(f"Could not remove replaced images {paths}: {error}")
 
 
 def signed_url(path, expires_in=3600):

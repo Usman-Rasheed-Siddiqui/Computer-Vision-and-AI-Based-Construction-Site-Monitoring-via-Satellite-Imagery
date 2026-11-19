@@ -53,9 +53,14 @@ from .serializers import (
 
 from monitoring.image_retrieval.image_retrieval import get_image, upload_temporary_preview, supabase, BUCKET_NAME
 from .image_cache import (
+    IMAGE_CACHE_DAYS,
     settings_tag,
+    accepted_tags,
     release_date_for,
-    find_cached_analysis,
+    find_recent_comparison,
+    can_reuse,
+    stored_paths,
+    remove_files,
     load_cached_analysis,
     run_housekeeping_if_due,
 )
@@ -832,6 +837,8 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
         progress_id = uuid.uuid4()
 
         progress_log = None
+        replacing_log = None
+        replaced_paths = []
 
         # Fingerprint of the processing settings; part of the storage folder name
         # so a result is only reused when the settings are unchanged.
@@ -853,25 +860,35 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
         earlier_release = release_date_for(earlier_target_date)
         later_release = release_date_for(later_target_date)
 
-        cached_log = None
+        # The row for this comparison processed in the last 10 days, if any.
+        # It is either reused as-is, or (images gone / settings changed)
+        # overwritten below, so the history never gets a duplicate row.
+        recent_log = None
         if earlier_release and later_release and earlier_release < later_release:
-            cached_log = find_cached_analysis(
+            recent_log = find_recent_comparison(
                 site,
                 date.fromisoformat(earlier_release),
                 date.fromisoformat(later_release),
-                settings_fingerprint,
             )
 
-        if cached_log:
+        if recent_log and can_reuse(recent_log, accepted_tags(threshold, extent_meters)):
+            cached_log = recent_log
             try:
                 cached = load_cached_analysis(cached_log, latitude, extent_meters)
                 total_site_area = Decimal(extent_meters) ** 2
+                reuse_until = cached_log.processed_at + timedelta(days=IMAGE_CACHE_DAYS)
 
                 return Response(
                     {
                         "status": "success",
-                        "message": "Loaded your stored analysis for these dates.",
+                        "message": (
+                            "These dates were already analysed within the last "
+                            f"{IMAGE_CACHE_DAYS} days, so the saved result was reused "
+                            "and no new record was added."
+                        ),
                         "from_cache": True,
+                        "cached_processed_at": cached_log.processed_at.isoformat(),
+                        "cache_valid_until": reuse_until.isoformat(),
 
                         "progress": ProgressLogSerializer(cached_log).data,
 
@@ -953,16 +970,29 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # 3. Create progress record
-            progress_log = ProgressLogs.objects.create(
-                progress_id=progress_id,
-                construction=site,
-                requested_by=profile,
-                earlier_date=actual_earlier_date,
-                later_date=actual_later_date,
-                satellite_image_date=actual_later_date,
-                status="processing"
+            # 3. Progress record: overwrite the recent row for this comparison
+            # instead of adding a duplicate (checked again with the actual
+            # release dates, in case they differ from the predicted ones).
+            existing_log = find_recent_comparison(
+                site, actual_earlier_date, actual_later_date
             )
+
+            if existing_log:
+                # Left untouched until the new result is ready, so a failure
+                # here never destroys the previous good result.
+                replacing_log = existing_log
+                replaced_paths = stored_paths(existing_log)
+                progress_log = existing_log
+            else:
+                progress_log = ProgressLogs.objects.create(
+                    progress_id=progress_id,
+                    construction=site,
+                    requested_by=profile,
+                    earlier_date=actual_earlier_date,
+                    later_date=actual_later_date,
+                    satellite_image_date=actual_later_date,
+                    status="processing"
+                )
 
             # 4. Run BIT inference
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -1090,10 +1120,18 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
                 progress_log.area_changed_sqm = area_changed
                 progress_log.change_percentage = change_percentage
 
+                progress_log.requested_by = profile
                 progress_log.status = "completed"
                 progress_log.processed_at = timezone.now()
 
                 progress_log.save()
+
+                # The overwritten row's old images are no longer referenced.
+                if replacing_log:
+                    remove_files(
+                        p for p in replaced_paths
+                        if p not in stored_paths(progress_log)
+                    )
 
             # 9. Generate signed URLs for frontend
             def get_signed_url(file_path):
@@ -1116,7 +1154,14 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
             return Response(
                 {
                     "status": "success",
-                    "message": "Construction site analysis completed.",
+                    "message": (
+                        "Construction site analysis completed. The earlier record "
+                        "for these dates was updated instead of adding a new one."
+                        if replacing_log
+                        else "Construction site analysis completed."
+                    ),
+                    "from_cache": False,
+                    "record_updated": bool(replacing_log),
 
                     "progress": ProgressLogSerializer(
                         progress_log
@@ -1165,7 +1210,8 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
             import traceback
             traceback.print_exc()
 
-            if progress_log:
+            # A reused row keeps its previous (good) result on failure.
+            if progress_log and not replacing_log:
                 progress_log.status = "failed"
                 progress_log.processed_at = timezone.now()
 

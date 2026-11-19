@@ -12,6 +12,7 @@ import {
   Clock,
   ShieldAlert,
   CheckCircle2,
+  History,
   Image as ImageIcon,
 } from 'lucide-react';
 
@@ -57,6 +58,13 @@ interface AnalysisResult {
 interface MonitoringResponse {
   status: string;
   message: string;
+  // True when the same comparison was analysed within the last 10 days and
+  // the saved result was returned (no new record added).
+  from_cache?: boolean;
+  cached_processed_at?: string;
+  cache_valid_until?: string;
+  // True when a fresh analysis overwrote the earlier record for these dates.
+  record_updated?: boolean;
   progress: {
     progress_id: string;
     status: string;
@@ -107,6 +115,22 @@ function formatDate(value?: string | null) {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+  });
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return 'N/A';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -503,17 +527,45 @@ export default function MonitorSite() {
           {result && (
             <div className="space-y-8">
 
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 flex items-center gap-3">
-                <CheckCircle2 className="text-emerald-400 shrink-0" size={24} />
-                <div>
-                  <h2 className="text-emerald-300 font-bold">
-                    Analysis completed successfully
-                  </h2>
-                  <p className="text-sm text-slate-400 mt-1">
-                    Your construction monitoring results have been saved.
-                  </p>
+              {result.from_cache ? (
+                <div className="bg-sky-500/10 border border-sky-500/30 rounded-2xl p-5 flex items-start gap-3">
+                  <History className="text-sky-400 shrink-0 mt-0.5" size={24} />
+                  <div>
+                    <h2 className="text-sky-300 font-bold">
+                      Showing your saved result for these dates
+                    </h2>
+                    <p className="text-sm text-slate-400 mt-1">
+                      This comparison was already analysed
+                      {result.cached_processed_at
+                        ? ` on ${formatDateTime(result.cached_processed_at)}`
+                        : ''}
+                      , within the last 10 days, so the saved result was reused.
+                      No new record was added to your progress history.
+                    </p>
+                    {result.cache_valid_until && (
+                      <p className="text-xs text-slate-500 mt-2">
+                        Running it again after{' '}
+                        {formatDateTime(result.cache_valid_until)} will process
+                        fresh imagery.
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 flex items-center gap-3">
+                  <CheckCircle2 className="text-emerald-400 shrink-0" size={24} />
+                  <div>
+                    <h2 className="text-emerald-300 font-bold">
+                      Analysis completed successfully
+                    </h2>
+                    <p className="text-sm text-slate-400 mt-1">
+                      {result.record_updated
+                        ? 'The existing record for these dates was updated, so no duplicate was added.'
+                        : 'Your construction monitoring results have been saved.'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
