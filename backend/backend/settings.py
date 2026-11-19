@@ -18,6 +18,9 @@ from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Local development only: the repo-root .env is optional (load_dotenv just
+# returns False when it is missing, e.g. in the Docker image). Real
+# environment variables always take precedence over values in the file.
 load_dotenv(BASE_DIR.parent / ".env")
 
 # Quick-start development settings - unsuitable for production
