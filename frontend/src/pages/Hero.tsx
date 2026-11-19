@@ -8,7 +8,6 @@ import DashboardNav from '../components/DashboardNav';
 // looked different between two satellite images, and the percentage is that
 // area as a share of the monitored site (500 m x 500 m here).
 const SITE_AREA_SQM = 250000;
-const SAMPLE_START_DATE = '12 Jan 2026';
 
 const SAMPLE_ANALYSES = [
   { date: '10 Feb 2026', percent: 0.9 },

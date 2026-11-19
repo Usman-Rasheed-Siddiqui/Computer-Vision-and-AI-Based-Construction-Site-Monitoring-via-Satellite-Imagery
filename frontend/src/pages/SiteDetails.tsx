@@ -223,48 +223,30 @@ function SiteDetails() {
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        const response = await api.get('sites/');
+        // Single-site endpoint + progress logs, requested in parallel.
+        const [siteRes, logsRes] = await Promise.all([
+          api.get(`sites/${id}/`),
+          api.get(`sites/${id}/progress/`).catch((logErr) => {
+            console.error('Error fetching progress logs:', logErr);
+            return null;
+          }),
+        ]);
 
-        const mySites: ConstructionSite[] = response.data.my_sites || [];
-        const sharedSites: ConstructionSite[] = response.data.shared_sites || [];
+        const selectedSite: ConstructionSite = siteRes.data;
+        setSite(selectedSite);
+        setEditedArea(selectedSite.area || '');
+        setEditedStartDate(selectedSite.start_date);
+        setEditedEndDate(selectedSite.end_date || '');
+        setIsOwner(Boolean((siteRes.data as any).is_owner));
 
-        const allSites = [...mySites, ...sharedSites];
-
-        const selectedSite = allSites.find(
-          (item) => String(item.construction_id) === id
-        );
-
-        if (selectedSite) {
-          setSite(selectedSite);
-          setEditedArea(selectedSite.area || '');
-          setEditedStartDate(selectedSite.start_date);
-          setEditedEndDate(selectedSite.end_date || '');
-
-          const isOwnedByMe = mySites.some(
-            (item) => String(item.construction_id) === id
-          );
-
-          setIsOwner(isOwnedByMe);
-        } else {
-          setError('Site not found or you do not have access to it.');
-          setLoading(false);
-          return;
-        }
-
-        try {
-          const logsResponse = await api.get(`sites/${id}/progress/`);
-          const logsData =
-            logsResponse.data.progress_logs || logsResponse.data;
-
-          setProgressLogs(Array.isArray(logsData) ? logsData : []);
-        } catch (logErr) {
-          console.error('Error fetching progress logs:', logErr);
-          setProgressLogs([]);
-        }
+        const logsData = logsRes?.data?.progress_logs || logsRes?.data;
+        setProgressLogs(Array.isArray(logsData) ? logsData : []);
       } catch (err: any) {
         setError(
-          err.response?.data?.detail ||
-          'Unable to load site details. Please try again.'
+          err.response?.status === 404
+            ? 'Site not found or you do not have access to it.'
+            : err.response?.data?.detail ||
+              'Unable to load site details. Please try again.'
         );
       } finally {
         setLoading(false);

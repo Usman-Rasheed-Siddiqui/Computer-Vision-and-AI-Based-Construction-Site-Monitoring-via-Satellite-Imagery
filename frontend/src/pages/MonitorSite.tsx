@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -132,17 +131,8 @@ export default function MonitorSite() {
 
     const fetchSite = async () => {
       try {
-        const response = await api.get('sites/');
-
-        const mySites = response.data.my_sites || [];
-        const sharedSites = response.data.shared_sites || [];
-
-        const allSites = [...mySites, ...sharedSites];
-
-        const found = allSites.find(
-          (siteItem: ConstructionSite) =>
-            String(siteItem.construction_id) === id
-        );
+        const response = await api.get(`sites/${id}/`);
+        const found: ConstructionSite | undefined = response.data;
 
         if (!active) return;
 
@@ -270,7 +260,10 @@ export default function MonitorSite() {
       <div className="min-h-screen bg-[#080A19] flex flex-col items-center justify-center text-red-400 gap-4">
         <ShieldAlert size={32} />
         <p>{error || 'Site not found.'}</p>
-        <Link to="/construction-site/member" className="text-emerald-400 hover:text-emerald-300">
+        <Link
+          to="/construction-site/member"
+          className="text-emerald-400 hover:text-emerald-300"
+        >
           Back to My Sites
         </Link>
       </div>
@@ -448,7 +441,7 @@ export default function MonitorSite() {
               </div>
 
               <h2 className="text-2xl font-bold text-white mb-3">
-                Monitoring
+                Running AI Analysis
               </h2>
 
               <p className="text-sm text-slate-400 max-w-md">
@@ -687,7 +680,7 @@ export default function MonitorSite() {
                   }}
                   className="px-6 py-3 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-colors"
                 >
-                  Monitor Again
+                  Run Another Analysis
                 </button>
 
                 <Link

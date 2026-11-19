@@ -169,11 +169,15 @@ def site_detail(request, site_id):
 
     site = get_object_or_404(
         ConstructionSites.objects.filter(
-            Q(created_by=profile) | Q(usersite__user=profile)
-        ).distinct(),
+            Q(created_by=profile)
+            | Exists(UserSite.objects.filter(
+                construction=OuterRef("pk"), user=profile))
+        ),
         construction_id=site_id,
     )
-    return Response(ConstructionSiteSerializer(site).data)
+    data = ConstructionSiteSerializer(site).data
+    data["is_owner"] = site.created_by_id == profile.pk
+    return Response(data)
 
 
 @api_view(["GET"])
@@ -186,8 +190,10 @@ def site_progress(request, site_id):
 
     site = get_object_or_404(
         ConstructionSites.objects.filter(
-            Q(created_by=profile) | Q(usersite__user=profile)
-        ).distinct(),
+            Q(created_by=profile)
+            | Exists(UserSite.objects.filter(
+                construction=OuterRef("pk"), user=profile))
+        ),
         construction_id=site_id,
     )
 
