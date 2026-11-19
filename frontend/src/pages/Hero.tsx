@@ -8,6 +8,7 @@ import DashboardNav from '../components/DashboardNav';
 // looked different between two satellite images, and the percentage is that
 // area as a share of the monitored site (500 m x 500 m here).
 const SITE_AREA_SQM = 250000;
+const SAMPLE_START_DATE = '12 Jan 2026';
 
 const SAMPLE_ANALYSES = [
   { date: '10 Feb 2026', percent: 0.9 },
@@ -59,7 +60,7 @@ function ProgressCard() {
   const previous = SAMPLE_ANALYSES[SAMPLE_ANALYSES.length - 2];
 
   return (
-    <Animate delay={900} direction="scale" className="w-full max-w-[405px] mx-auto lg:mx-0">
+    <Animate delay={300} direction="scale" className="w-full max-w-[405px] mx-auto lg:mx-0">
       <div className="w-full rounded-[24px] sm:rounded-[33px] bg-[rgba(10,20,35,0.6)] backdrop-blur-[20px] border border-[#15803D]/20 p-5 sm:p-8 pb-5 sm:pb-6">
 
         <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -139,7 +140,7 @@ export default function Hero() {
           <div className="w-full max-w-[1800px] mx-auto px-5 sm:px-8 md:px-[82px] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-10 lg:gap-12">
             
             <div className="max-w-[593px]">
-              <Animate delay={100} direction="up">
+              <Animate delay={0} direction="up">
                 <Link
                   to="/"
                   className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors mb-5"
@@ -149,19 +150,19 @@ export default function Hero() {
                 </Link>
               </Animate>
 
-              <Animate delay={300} direction="up">
+              <Animate delay={80} direction="up">
                 <h1 className="text-white text-[36px] sm:text-[52px] md:text-[64px] lg:text-[72px] font-normal leading-[0.95] mb-5 sm:mb-8">
                   Automated satellite intelligence for construction
                 </h1>
               </Animate>
 
-              <Animate delay={500} direction="up">
+              <Animate delay={160} direction="up">
                 <p className="text-white/80 text-[16px] sm:text-[18px] md:text-[20px] font-[450] leading-[1.3] max-w-[370px] mb-7 sm:mb-10">
                   Analyze satellite imagery, generate automated change reports, and track physical progress with precision.
                 </p>
               </Animate>
 
-              <Animate delay={700} direction="up">
+              <Animate delay={240} direction="up">
                 <div className="flex flex-wrap gap-3 sm:gap-4">
                   <button onClick={() => navigate('/construction-site/register')} className="h-[46px] sm:h-[51px] px-5 sm:px-[27px] bg-[#15803D] rounded-[12px] text-white text-[14px] sm:text-[15.5px] font-[450] leading-[15.5px] transition-opacity hover:opacity-90">
                     Register Site

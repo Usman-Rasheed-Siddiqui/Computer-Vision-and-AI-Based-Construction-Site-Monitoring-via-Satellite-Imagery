@@ -89,6 +89,10 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT', '5432'),
+        # Reuse DB connections for 10 min instead of a fresh TLS handshake
+        # to the remote Supabase pooler on every request.
+        'CONN_MAX_AGE': 600,
+        'CONN_HEALTH_CHECKS': True,
         'OPTIONS': {
             'sslmode': 'require',
         },
@@ -104,6 +108,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -154,10 +159,20 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Session ends after 1 hour of inactivity: the refresh token lasts 1 hour and
+# is re-issued (rotated) every time the client renews its short access token,
+# so it only stays valid while the user keeps being active.
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=1),
+    'ROTATE_REFRESH_TOKENS': True,
 }
+
+# Passwords are stored as salted PBKDF2-SHA256 hashes (Django's default hasher).
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

@@ -11,7 +11,6 @@ from monitoring.models import Users
 from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
 
-import math
 import hashlib
 import os
 import time
@@ -22,7 +21,7 @@ import json
 import uuid
 import logging
 
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404
 
 from pathlib import Path
@@ -52,15 +51,14 @@ from .serializers import (
     ProgressAnalysisRequestSerializer,
 )
 
-from .image_cache import (
-         settings_tag,
-         release_date_for,
-         find_cached_analysis,
-         load_cached_analysis,
-         run_housekeeping_if_due,
-     )
-
 from monitoring.image_retrieval.image_retrieval import get_image, upload_temporary_preview, supabase, BUCKET_NAME
+from .image_cache import (
+    settings_tag,
+    release_date_for,
+    find_cached_analysis,
+    load_cached_analysis,
+    run_housekeeping_if_due,
+)
 CHANGE_DETECTION_THRESHOLD = 0.03
 
 @api_view(['GET'])
@@ -86,10 +84,13 @@ def database_check(request):
 
 def get_profile_user(request):
     """Map the authenticated Django account to the existing users row."""
+    # Cached on the request so one request = one lookup (was 2+ per request).
+    if hasattr(request, "_profile_user_cache"):
+        return request._profile_user_cache
     email = getattr(request.user, "email", "")
-    if not email:
-        return None
-    return Users.objects.filter(email__iexact=email).first()
+    profile = Users.objects.filter(email__iexact=email).first() if email else None
+    request._profile_user_cache = profile
+    return profile
 
 
 class SiteListCreateView(generics.ListCreateAPIView):
@@ -101,10 +102,13 @@ class SiteListCreateView(generics.ListCreateAPIView):
         if not profile:
             return ConstructionSites.objects.none()
 
+        # EXISTS sub-query instead of OR + JOIN + DISTINCT (no row blow-up).
+        member = UserSite.objects.filter(
+            construction=OuterRef("pk"), user=profile
+        )
         return ConstructionSites.objects.filter(
-            Q(created_by=profile) |
-            Q(usersite__user=profile)
-        ).distinct().order_by("-created_at")
+            Q(created_by=profile) | Exists(member)
+        ).order_by("-created_at")
 
     # --- ADD THIS NEW METHOD TO SPLIT THE SITES ---
     def list(self, request, *args, **kwargs):
@@ -116,7 +120,7 @@ class SiteListCreateView(generics.ListCreateAPIView):
         
         for site in queryset:
             # Check if the site was created by the currently authenticated user
-            if site.created_by == profile:
+            if site.created_by_id == profile.pk:  # no extra query per site
                 my_sites.append(site)
             else:
                 shared_sites.append(site)
@@ -312,6 +316,7 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
+
 def check_coordinates(latitude, longitude):
     """Return an error message if the coordinates are missing or out of range, else None."""
     try:
@@ -338,6 +343,12 @@ def check_start_date(raw):
     except ValueError:
         return None, "Start date must be in YYYY-MM-DD format."
 
+    # The server runs in UTC, so a user ahead of UTC can be on "tomorrow" for a
+    # few hours. Allow one day of slack for that; the form blocks future dates.
+    if value > date.today() + timedelta(days=1):
+        return None, "Start date cannot be in the future."
+    return value, None
+
 
 class PreviewSatelliteView(APIView):
     permission_classes = [IsAuthenticated] # Ensures user is logged in via JWT
@@ -348,6 +359,7 @@ class PreviewSatelliteView(APIView):
         coordinate_error = check_coordinates(data.get("latitude"), data.get("longitude"))
         if coordinate_error:
             return Response({"detail": coordinate_error}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             latitude = float(data.get("latitude"))
             longitude = float(data.get("longitude"))
@@ -404,7 +416,7 @@ class ConfirmRegisterSiteView(APIView):
         if coordinate_error:
             return Response({"detail": coordinate_error},
                             status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             site_name = data.get("site_name")
             start_date = data.get("start_date")
@@ -895,6 +907,7 @@ class SiteProgressAnalysisView(generics.GenericAPIView):
                 # Stored files unreadable: fall through and process normally.
 
         try:
+
             # 1. Retrieve earlier satellite image
             earlier_image, earlier_info = get_image(
                 target_date=earlier_target_date.isoformat(),
