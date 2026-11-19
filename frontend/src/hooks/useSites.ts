@@ -13,7 +13,8 @@ export function useSites() {
     setError(null)
 
     try {
-      setSites(await getSites())
+      const { my_sites, shared_sites } = await getSites()
+      setSites([...my_sites, ...shared_sites])
     } catch {
       setError('Could not load construction sites.')
     } finally {

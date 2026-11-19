@@ -160,8 +160,6 @@ const INK: Record<'dark' | 'light', number[]> = { dark: [244, 244, 245], light: 
 const MIN_CELL = 150;
 const MIN_PAIR = 200;
 const STAGGER = 80;
-const TILT = 6;
-const MAGNET = 6;
 
 const ROOT_CLASS = 'magic-bento relative box-border grid w-full [grid-auto-flow:row_dense] text-[color:var(--mb-ink)] [-webkit-tap-highlight-color:transparent]';
 const CELL_CLASS = 'magic-bento__cell relative min-h-0 min-w-0 [--mb-delay:0ms]';
@@ -169,7 +167,6 @@ const CARD_CLASS = 'magic-bento__card relative box-border isolate flex h-full w-
 const IMAGE_CLASS = 'pointer-events-none absolute inset-0 z-0 h-full w-full object-cover';
 const SCRIM_CLASS = 'pointer-events-none absolute inset-0 z-0';
 const LIGHT_CLASS = 'pointer-events-none absolute inset-0 z-[1] rounded-[inherit]';
-const STARS_CLASS = 'pointer-events-none absolute inset-0 z-[1] block h-full w-full';
 const RIM_CLASS = 'pointer-events-none absolute inset-0 z-[3] rounded-[inherit] [box-shadow:inset_0_0_0_1px_var(--mb-edge),inset_0_1px_0_var(--mb-highlight)]';
 const BORDER_CLASS = 'pointer-events-none absolute inset-0 z-[4] box-border rounded-[inherit] p-px';
 const CONTENT_CLASS = 'relative z-[2] box-border flex min-h-0 flex-1 flex-col gap-3 p-[var(--mb-pad)]';
@@ -403,19 +400,6 @@ const VISUALS: Record<string, React.FC<any>> = {
   dashboard: DashboardVisual,
 };
 
-const REPLAY = new Set([
-  'magic-bento-draw', 'magic-bento-fade', 'magic-bento-grow', 'magic-bento-pop', 
-  'magic-bento-select', 'magic-bento-wait', 'magic-bento-run', 'magic-bento-check', 
-  'magic-bento-rail', 'magic-bento-switch-track', 'magic-bento-switch-knob'
-]);
-
-const finite = (animation: Animation) => {
-  const timing = animation.effect?.getTiming?.();
-  return timing ? timing.iterations !== Infinity : false;
-};
-
-const nameOf = (animation: Animation) => (animation as CSSAnimation).animationName || '';
-
 const MagicBento = ({
   items = [],
   columns = 4,
@@ -596,7 +580,7 @@ const MagicBento = ({
     const onPointerDown = (event: PointerEvent) => { pointer.x = event.clientX; pointer.y = event.clientY; pointer.inside = true; pointer.down = cardIndex(event.target); wake(); };
     const release = () => { if (pointer.down < 0) return; pointer.down = -1; wake(); };
 
-    const activate = (index: number, x: number, y: number) => {
+    const activate = (x: number, y: number) => {
       if (settingsRef.current.clickEffect) { if (dirty) measure(); startWave(x, y, 1.1); }
       wake();
     };
@@ -607,8 +591,8 @@ const MagicBento = ({
       if (!card) return;
       if (event.detail === 0) {
         const rect = card.getBoundingClientRect();
-        activate(index, rect.left + rect.width / 2, rect.top + rect.height / 2);
-      } else activate(index, event.clientX, event.clientY);
+        activate(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      } else activate(event.clientX, event.clientY);
     };
 
     const onScroll = () => { dirty = true; wake(); };

@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 
 // Standardized inline SVGs to replace lucide-react brand icons
@@ -20,13 +20,6 @@ const SocialIcons = {
 
 export default function FooterParallax() {
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end end"]
-  });
-
-  const yTruck = useTransform(scrollYProgress, [0, 1], [-50, 150]);
 
   return (
     <div className="bg-[#f8f9fa] w-full font-sans">
