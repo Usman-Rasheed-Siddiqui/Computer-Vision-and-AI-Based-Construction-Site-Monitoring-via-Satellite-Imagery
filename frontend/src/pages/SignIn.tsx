@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api/auth';
+import { SESSION_EXPIRED_FLAG } from '../api/session';
+import AuthBrandPanel from '../components/AuthBrandPanel';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 
 export default function SignIn() {
@@ -9,7 +11,15 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() =>
+    sessionStorage.getItem(SESSION_EXPIRED_FLAG)
+      ? 'Your session ended after 1 hour of inactivity. Please sign in again.'
+      : '',
+  );
+
+  useEffect(() => {
+    sessionStorage.removeItem(SESSION_EXPIRED_FLAG);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,37 +44,12 @@ export default function SignIn() {
   return (
     <div className="flex min-h-screen w-full bg-white font-sans text-gray-900">
       {/* Brand Panel (Left) */}
-      <aside className="hidden lg:flex relative flex-col justify-between w-[41%] min-h-screen p-8 lg:p-12 overflow-hidden bg-[#0b0a1f] text-white">
-        <div className="absolute inset-0 bg-cover bg-center opacity-40 pointer-events-none" style={{ backgroundImage: `url(https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/d889cba6-535c-450f-9b74-7270c0e01e9a.webp)` }} />
-        
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white grid place-item shadow-sm">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 mx-auto my-auto text-gray-900"><circle cx="12" cy="9.5" r="5" stroke="currentColor" strokeWidth="2.6"/><rect x="10.7" y="13" width="2.6" height="8" rx="1.3" fill="currentColor"/></svg>
-          </div>
-          <span className="text-xl font-bold tracking-tight">keylight.</span>
-        </div>
-
-        <div className="relative z-10 my-auto max-w-sm">
-          <h2 className="text-4xl font-semibold tracking-tight leading-tight text-gray-100">Unlock calmly. Grow without worry.</h2>
-          <p className="mt-4 text-sm text-white/60 leading-relaxed">Sign in with precision, not a guess. Made to keep every development team in absolute flow.</p>
-          
-          {/* Testimonial Quote */}
-          <div className="mt-8 p-5 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md">
-            <p className="text-xs text-white/80 leading-relaxed">"Our workflow security across Karachi and Lahore offices became rock solid instantly. No more lost key issues."</p>
-            <div className="mt-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-white">Hamza Khan</p>
-                <p className="text-[10px] text-white/40">Co-founder, Karachi Tech</p>
-              </div>
-              <span className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-purple-600 flex items-center justify-center text-[10px] font-bold">HK</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 text-xs text-white/40">
-          漏 2026 Keylight, Inc. All rights reserved.
-        </div>
-      </aside>
+      <AuthBrandPanel
+        headline="Welcome back to your sites."
+        text="Sign in to compare satellite images, review detected changes and track construction progress."
+        cardTitle="What's waiting for you"
+        items={['Your registered and shared construction sites','Change detection between any two dates','AI progress summaries and PDF reports']}
+      />
 
       {/* Auth Form Panel (Right) */}
       <main className="flex-1 flex flex-col justify-between p-6 sm:p-12 lg:p-24 bg-white">
@@ -77,12 +62,12 @@ export default function SignIn() {
           </button>
         </div>
         <div className="flex justify-end lg:hidden">
-          <span className="font-bold text-lg tracking-tight">keylight.</span>
+          <span className="flex items-center gap-2 font-bold text-lg tracking-tight"><img src="/logo.png" alt="" className="h-7 w-7 object-contain" />Sightline.</span>
         </div>
 
         <div className="max-w-md w-full mx-auto my-auto">
-          <h1 className="text-3xl font-semibold tracking-tight">Hello again!</h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to carry on.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
+          <p className="mt-1 text-sm text-gray-500">Sign in to your Sightline account.</p>
 
           {error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">
@@ -128,13 +113,6 @@ export default function SignIn() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" defaultChecked className="rounded border-gray-300 text-black focus:ring-black" />
-                <span className="text-gray-600">Remember me</span>
-              </label>
-            </div>
-
             <button 
               type="submit" 
               disabled={loading}
@@ -145,7 +123,7 @@ export default function SignIn() {
           </form>
 
           <p className="mt-6 text-center text-xs text-gray-500">
-            No Keylight space yet? <a href="/signup" className="font-semibold text-gray-900 hover:underline">Open a free space</a>
+            New to Sightline? <a href="/signup" className="font-semibold text-gray-900 hover:underline">Create an account</a>
           </p>
         </div>
 

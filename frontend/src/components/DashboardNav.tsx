@@ -72,9 +72,7 @@ export default function DashboardNav() {
             onClick={() => navigate('/hero')}
             className="flex items-center gap-2.5 cursor-pointer"
           >
-            <svg width="28" height="28" viewBox="0 0 256 256" fill="none" className="sm:w-[32px] sm:h-[32px]">
-              <path fill="white" d="M 256 256 L 178 256 C 150.386 256 128 233.614 128 206 L 128 256 L 0 256 L 0 192 C 0 156.654 28.654 128 64 128 C 99.346 128 128 156.654 128 192 L 128 128 L 256 128 Z M 78 0 C 105.614 0 128 22.386 128 50 L 128 0 L 256 0 L 256 64 C 256 99.346 227.346 128 192 128 C 156.654 128 128 99.346 128 64 L 128 128 L 0 128 L 0 0 Z" />
-            </svg>
+            <img src="/logo.png" alt="Sightline logo" className="h-9 w-9 sm:h-11 sm:w-11 object-contain scale-125" />
             <span className="text-white text-[22px] sm:text-[26px] font-[450] leading-none tracking-[-0.02em]">
               SightLine
             </span>

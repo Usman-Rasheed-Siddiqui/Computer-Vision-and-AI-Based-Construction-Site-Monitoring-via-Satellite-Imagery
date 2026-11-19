@@ -1,3 +1,4 @@
+import { Mail, Plus } from 'lucide-react';
 
 export default function AboutSection() {
   return (
@@ -6,6 +7,22 @@ export default function AboutSection() {
         <p className="text-slate-300 text-base md:text-lg text-center leading-relaxed max-w-lg">
           We craft systems that scale with your project. Designed to seamlessly track construction progress globally without replacing physical safety inspections.
         </p>
+        
+        <div className="flex flex-wrap justify-center gap-4 mt-8">
+          <button className="bg-blue-600 text-white rounded-full flex items-center pr-5 pl-1 py-1 group hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20">
+            <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center mr-3">
+              <Mail size={16} className="text-blue-600" />
+            </span>
+            <span className="uppercase tracking-wide font-medium text-xs">Say hello</span>
+          </button>
+          
+          <button className="bg-slate-800 text-emerald-400 border border-slate-700 rounded-full flex items-center pr-5 pl-1 py-1 group hover:bg-slate-700 transition-colors">
+            <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center mr-3">
+              <Plus size={16} className="text-white" />
+            </span>
+            <span className="uppercase tracking-wide font-medium text-xs text-white">Stay informed</span>
+          </button>
+        </div>
       </div>
 
       <div className="w-full flex items-center justify-center my-20">
@@ -16,9 +33,7 @@ export default function AboutSection() {
 
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-12 md:gap-24 items-start">
         <div className="flex flex-col gap-4">
-          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 256 256" fill="none">
-            <path d="M 256 256 L 178 256 C 150.386 256 128 233.614 128 206 L 128 256 L 0 256 L 0 192 C 0 156.654 28.654 128 64 128 C 99.346 128 128 156.654 128 192 L 128 128 L 256 128 Z M 78 0 C 105.614 0 128 22.386 128 50 L 128 0 L 256 0 L 256 64 C 256 99.346 227.346 128 192 128 C 156.654 128 128 99.346 128 64 L 128 128 L 0 128 L 0 0 Z" fill="#34D399" />
-          </svg>
+          <img src="/logo.png" alt="Sightline logo" className="h-12 w-12 object-contain scale-125" />
           <span className="text-xs uppercase tracking-widest font-semibold text-emerald-400">
             Global /<br/>Precision
           </span>

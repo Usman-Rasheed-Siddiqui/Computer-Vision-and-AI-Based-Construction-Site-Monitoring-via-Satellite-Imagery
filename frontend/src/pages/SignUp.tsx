@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { register } from '../api/auth';
+import AuthBrandPanel from '../components/AuthBrandPanel';
 import { Mail, Lock} from 'lucide-react';
 
 export default function SignUp() {
@@ -21,6 +22,11 @@ export default function SignUp() {
       return;
     }
 
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
     try {
       setLoading(true);
         await register({
@@ -32,7 +38,11 @@ export default function SignUp() {
       alert('Account registered successfully! Please sign in.');
       window.location.href = '/signin';
     } catch (err: any) {
-      setError(err.response?.data?.detail || JSON.stringify(err.response?.data) || 'Registration failed.');
+      const data = err.response?.data;
+      const firstField = data && typeof data === 'object'
+        ? (Object.values(data).flat()[0] as string | undefined)
+        : undefined;
+      setError(data?.detail || firstField || 'Registration failed.');
     } finally {
       setLoading(false);
     }
@@ -41,36 +51,12 @@ export default function SignUp() {
   return (
     <div className="flex min-h-screen w-full bg-white font-sans text-gray-900">
       {/* Brand Panel (Left) */}
-      <aside className="hidden lg:flex relative flex-col justify-between w-[41%] min-h-screen p-8 lg:p-12 overflow-hidden bg-[#0b0a1f] text-white">
-        <div className="absolute inset-0 bg-cover bg-center opacity-40 pointer-events-none" style={{ backgroundImage: `url(https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/d889cba6-535c-450f-9b74-7270c0e01e9a.webp)` }} />
-        
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white grid place-item shadow-sm">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 mx-auto my-auto text-gray-900"><circle cx="12" cy="9.5" r="5" stroke="currentColor" strokeWidth="2.6"/><rect x="10.7" y="13" width="2.6" height="8" rx="1.3" fill="currentColor"/></svg>
-          </div>
-          <span className="text-xl font-bold tracking-tight">keylight.</span>
-        </div>
-
-        <div className="relative z-10 my-auto max-w-sm">
-          <h2 className="text-4xl font-semibold tracking-tight leading-tight text-gray-100">Create your space. Build securely.</h2>
-          <p className="mt-4 text-sm text-white/60 leading-relaxed">Join teams across Pakistan tracking and managing project access with zero friction.</p>
-
-          <div className="mt-8 p-5 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md">
-            <p className="text-xs text-white/80 leading-relaxed">"Exactly the right mix of strictness and ease. It let our engineering squad ship our new release weeks ahead."</p>
-            <div className="mt-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-white">Ayesha Malik</p>
-                <p className="text-[10px] text-white/40">Lead Engineer, Lahore Labs</p>
-              </div>
-              <span className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-[10px] font-bold">AM</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 text-xs text-white/40">
-          漏 2026 Keylight, Inc. All rights reserved.
-        </div>
-      </aside>
+      <AuthBrandPanel
+        headline="Create your account. Monitor with confidence."
+        text="Register your construction sites and track physical progress from satellite imagery."
+        cardTitle="How it works"
+        items={['Register a site and confirm it on the map','Compare satellite images from two dates','Read the AI summary and download the report']}
+      />
 
       {/* Auth Form Panel (Right) */}
       <main className="flex-1 flex flex-col justify-between p-6 sm:p-12 lg:p-20 bg-white">
@@ -83,12 +69,12 @@ export default function SignUp() {
           </button>
         </div>
         <div className="flex justify-end lg:hidden">
-          <span className="font-bold text-lg tracking-tight">keylight.</span>
+          <span className="flex items-center gap-2 font-bold text-lg tracking-tight"><img src="/logo.png" alt="" className="h-7 w-7 object-contain" />Sightline.</span>
         </div>
 
         <div className="max-w-md w-full mx-auto my-auto">
-          <h1 className="text-3xl font-semibold tracking-tight">Get started</h1>
-          <p className="mt-1 text-sm text-gray-500">Open your free Keylight space.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Create your account</h1>
+          <p className="mt-1 text-sm text-gray-500">Start monitoring your construction sites.</p>
 
           {error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">
@@ -158,7 +144,7 @@ export default function SignUp() {
           </form>
 
           <p className="mt-6 text-center text-xs text-gray-500">
-            Already have a space? <a href="/signin" className="font-semibold text-gray-900 hover:underline">Sign in</a>
+            Already have an account? <a href="/signin" className="font-semibold text-gray-900 hover:underline">Sign in</a>
           </p>
         </div>
 
