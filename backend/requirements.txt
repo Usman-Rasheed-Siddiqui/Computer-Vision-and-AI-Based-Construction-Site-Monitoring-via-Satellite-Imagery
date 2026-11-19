@@ -16,6 +16,7 @@ filelock==4.2.4
 fsspec==2026.9.0
 google-auth==2.62.2
 google-genai==3.3.0
+gunicorn==27.0.1
 h11==0.16.0
 h2==4.4.1
 hpack==4.2.0
@@ -62,4 +63,5 @@ typing_extensions==4.16.0
 tzdata==2026.6
 urllib3==2.8.0
 websockets==15.0.1
+whitenoise==6.12.0
 yarl==1.25.1

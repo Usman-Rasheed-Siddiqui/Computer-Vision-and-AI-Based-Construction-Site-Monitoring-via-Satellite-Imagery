@@ -3,3 +3,7 @@ backend/.venv/
 backend/backend/__pycache__/
 backend/monitoring/__pycache__/
 backend/monitoring/migrations/
+.venv/
+node_modules/
+staticfiles/
+__pycache__/
