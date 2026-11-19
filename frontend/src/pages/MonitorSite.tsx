@@ -270,11 +270,8 @@ export default function MonitorSite() {
       <div className="min-h-screen bg-[#080A19] flex flex-col items-center justify-center text-red-400 gap-4">
         <ShieldAlert size={32} />
         <p>{error || 'Site not found.'}</p>
-        <Link
-          to="/dashboard"
-          className="text-emerald-400 hover:text-emerald-300"
-        >
-          Return to Dashboard
+        <Link to="/construction-site/member" className="text-emerald-400 hover:text-emerald-300">
+          Back to My Sites
         </Link>
       </div>
     );

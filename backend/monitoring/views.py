@@ -5,12 +5,13 @@ from rest_framework import status, generics
 from rest_framework import generics, permissions
 from .serializers import RegisterSerializer
 from rest_framework.views import APIView
-from datetime import date
+from datetime import date, timedelta
 from django.db import connection
 from monitoring.models import Users
 from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
 
+import math
 import hashlib
 import os
 import time
@@ -303,11 +304,42 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
+def check_coordinates(latitude, longitude):
+    """Return an error message if the coordinates are missing or out of range, else None."""
+    try:
+        lat = float(latitude)
+        lon = float(longitude)
+    except (TypeError, ValueError):
+        return "Latitude and longitude must be valid numbers."
+
+    if not (math.isfinite(lat) and math.isfinite(lon)):
+        return "Latitude and longitude must be valid numbers."
+    if not -90 <= lat <= 90:
+        return "Latitude must be between -90 and 90."
+    if not -180 <= lon <= 180:
+        return "Longitude must be between -180 and 180."
+    return None
+
+
+def check_start_date(raw):
+    """Return (date, error). The start date must be a real date, today or earlier."""
+    if raw in (None, ""):
+        return None, "Start date is required."
+    try:
+        value = date.fromisoformat(str(raw))
+    except ValueError:
+        return None, "Start date must be in YYYY-MM-DD format."
+
+
 class PreviewSatelliteView(APIView):
     permission_classes = [IsAuthenticated] # Ensures user is logged in via JWT
 
     def post(self, request):
         data = request.data
+
+        coordinate_error = check_coordinates(data.get("latitude"), data.get("longitude"))
+        if coordinate_error:
+            return Response({"detail": coordinate_error}, status=status.HTTP_400_BAD_REQUEST)
         try:
             latitude = float(data.get("latitude"))
             longitude = float(data.get("longitude"))
@@ -343,6 +375,28 @@ class ConfirmRegisterSiteView(APIView):
 
     def post(self, request):
         data = request.data
+
+        # Reject invalid input before touching the database
+        site_name_value = str(data.get("site_name") or "").strip()
+        if not site_name_value:
+            return Response({"detail": "Construction site name is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        _, start_date_error = check_start_date(data.get("start_date"))
+        if start_date_error:
+            return Response({"detail": start_date_error},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        confirm_coords = data.get("center_coordinates")
+        if isinstance(confirm_coords, dict):
+            lat_in, lon_in = confirm_coords.get("latitude"), confirm_coords.get("longitude")
+        else:
+            lat_in, lon_in = data.get("latitude"), data.get("longitude")
+        coordinate_error = check_coordinates(lat_in, lon_in)
+        if coordinate_error:
+            return Response({"detail": coordinate_error},
+                            status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             site_name = data.get("site_name")
             start_date = data.get("start_date")

@@ -5,6 +5,7 @@ import FeaturesSection from './components/FeaturesSection';
 import FooterParallax from './components/FooterParallax';
 import FeaturesPage from './pages/FeaturesPage';
 import FAQPage from './pages/FAQPage';
+import NotFound from './pages/NotFound';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import Hero from './pages/Hero';
@@ -84,7 +85,7 @@ export default function App() {
         <Route path="/features" element={<FeaturesPage />} />
         <Route path="/faq" element={<FAQPage />} />
 
-        {/* Public-only routes: redirect to /dashboard if already logged in */}
+        {/* Public-only routes: redirect to /hero if already logged in */}
         <Route element={<PublicRoute />}>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
@@ -102,6 +103,9 @@ export default function App() {
           <Route path="/construction-site/member/:id" element={<SiteDetails />} />
           <Route path="/construction-site/member/:id/ai-analysis" element={<AIAnalysis />}/>
         </Route>
+
+        {/* Unknown URL: show the 404 page */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );

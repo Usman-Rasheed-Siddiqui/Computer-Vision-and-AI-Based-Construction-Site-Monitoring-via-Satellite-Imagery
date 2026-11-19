@@ -38,6 +38,14 @@ interface FormState {
   is_public: boolean;
 }
 
+// Today's date in the user's own time zone, as YYYY-MM-DD (not UTC).
+const todayLocal = (): string => {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+};
+
 export default function RegisterSitePage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2>(1);
@@ -54,7 +62,7 @@ export default function RegisterSitePage() {
     city: "",
     country: "",
     area: "",
-    start_date: new Date().toISOString().split("T")[0],
+    start_date: todayLocal(),
     latitude: "",
     longitude: "",
     extent_meters: "500",
@@ -73,6 +81,10 @@ export default function RegisterSitePage() {
     }
     if (!formData.start_date) {
       setErrorMessage("Start date is required.");
+      return false;
+    }
+    if (formData.start_date > todayLocal()) {
+      setErrorMessage("Start date cannot be in the future.");
       return false;
     }
     return true;
@@ -147,7 +159,9 @@ export default function RegisterSitePage() {
 
       navigate(`/construction-site/member`);
     } catch (err: any) {
-      setErrorMessage("Failed to save site registration to database.");
+      setErrorMessage(
+        err?.response?.data?.detail || "Failed to save site registration to database."
+      );
       setShowPreviewModal(false);
     } finally {
       setIsSubmitting(false);
@@ -249,7 +263,7 @@ export default function RegisterSitePage() {
                       <label className="block text-xs uppercase tracking-wider text-white/70 mb-2 font-medium flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5 text-[#4ADE80]" /> Start Date *
                       </label>
-                      <input type="date" value={formData.start_date} onChange={(e) => handleChange("start_date", e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-[#15803D] transition-colors" />
+                      <input type="date" max={todayLocal()} value={formData.start_date} onChange={(e) => handleChange("start_date", e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-[#15803D] transition-colors" />
                     </div>
 
                     <div className="pt-4">

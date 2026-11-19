@@ -1,4 +1,5 @@
 import api from './axios'
+import { checkSession, clearSession, refreshSession, touchActivity } from './session'
 
 export interface LoginPayload {
   username: string
@@ -35,6 +36,7 @@ export const login = async (
   localStorage.setItem('access_token', response.data.access)
   localStorage.setItem('refresh_token', response.data.refresh)
   localStorage.setItem('user_username', payload.username)
+  touchActivity()
 
   return response.data
 }
@@ -51,31 +53,12 @@ export const register = async (
 }
 
 export const refreshAccessToken = async (): Promise<TokenResponse> => {
-  const refresh = localStorage.getItem('refresh_token')
-
-  if (!refresh) {
-    throw new Error('No refresh token found. Please log in again.')
-  }
-
-  const response = await api.post<{ access: string }>(
-    '/auth/refresh/',
-    { refresh },
-  )
-
-  localStorage.setItem('access_token', response.data.access)
-
-  return {
-    access: response.data.access,
-    refresh,
-  }
+  const access = await refreshSession()
+  return { access, refresh: localStorage.getItem('refresh_token') ?? '' }
 }
 
 export const logout = (): void => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user_username')
+  clearSession()
 }
 
-export const isAuthenticated = (): boolean => {
-  return Boolean(localStorage.getItem('access_token'))
-}
+export const isAuthenticated = (): boolean => checkSession()
