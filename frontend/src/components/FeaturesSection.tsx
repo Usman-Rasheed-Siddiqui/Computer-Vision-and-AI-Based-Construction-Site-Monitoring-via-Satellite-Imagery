@@ -1,24 +1,28 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import LazyVideo from './LazyVideo';
 
 const features = [
   {
     id: 'f1',
     title: "Satellite-Powered Detection",
     description: "Drift strips away the noise by automatically retrieving suitable Sentinel-2 imagery through Google Earth Engine and comparing dates to detect physical changes. Every surface is made to be soft and quiet.",
-    video: "https://www.pexels.com/download/video/34707892/"
+    video: "https://videos.pexels.com/video-files/34707892/14711292_3840_2160_30fps.mp4",
+    poster: "https://images.pexels.com/videos/34707892/pexels-photo-34707892.jpeg?auto=compress&cs=tinysrgb&w=1280"
   },
   {
     id: 'f2',
     title: "AI-Generated Insights",
     description: "Beginning your day should feel natural. The system analyzes detected changes to identify patterns in site development over time, generating readable AI-based observations.",
-    video: "https://www.pexels.com/download/video/31699019/"
+    video: "https://videos.pexels.com/video-files/31699019/13506132_1920_1080_30fps.mp4",
+    poster: "https://images.pexels.com/videos/31699019/pexels-photo-31699019.jpeg?auto=compress&cs=tinysrgb&w=1280"
   },
   {
     id: 'f3',
     title: "Comprehensive Reporting",
     description: "No interruptions, no clutter. Generate a PDF construction monitoring report encompassing relevant satellite images, change detection results, and monitoring measurements.",
-    video: "https://www.pexels.com/download/video/5417651/"
+    video: "https://videos.pexels.com/video-files/5417651/5417651-hd_1280_720_24fps.mp4",
+    poster: "https://images.pexels.com/videos/5417651/pexels-photo-5417651.jpeg?auto=compress&cs=tinysrgb&w=1280"
   }
 ];
 
@@ -134,10 +138,10 @@ export default function FeaturesSection() {
                   {feature.title}
                 </h3>
                 
-                <video 
+                <LazyVideo
                   className="w-full aspect-video rounded-2xl overflow-hidden bg-black/30 object-cover mb-6"
-                  autoPlay muted loop playsInline
                   src={feature.video}
+                  poster={feature.poster}
                 />
                 
                 <p className="text-white/60 font-medium text-sm md:text-base leading-relaxed">

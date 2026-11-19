@@ -30,8 +30,9 @@ function LandingPage() {
           muted
           loop
           playsInline
+          preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
-          src="https://www.pexels.com/download/video/30811367/"
+          src="https://videos.pexels.com/video-files/30811367/13179143_3840_2160_60fps.mp4"
         />
         <div className="absolute inset-0 bg-slate-950/60 mix-blend-multiply" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-slate-900" />

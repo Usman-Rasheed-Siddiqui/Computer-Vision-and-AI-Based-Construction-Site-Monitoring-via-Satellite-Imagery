@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import LazyVideo from './LazyVideo';
 
 // Standardized inline SVGs to replace lucide-react brand icons
 const SocialIcons = {
@@ -28,13 +29,10 @@ export default function FooterParallax() {
         ref={containerRef} 
         className="relative h-screen w-full overflow-hidden"
       >
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
+        <LazyVideo
           className="absolute inset-0 w-full h-full object-cover z-0"
-          src="https://www.pexels.com/download/video/30810332/"
+          src="https://videos.pexels.com/video-files/30810332/13177851_3840_2160_60fps.mp4"
+          rootMargin="600px"
         />
 
         <div className="absolute top-0 w-full pt-12 md:pt-24 lg:pt-12 px-4 z-30">
