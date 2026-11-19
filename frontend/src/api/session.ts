@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearSiteCache } from './siteCache'
 
 /** Session ends after this long without user activity (NFR: 1 hour). */
 export const SESSION_IDLE_LIMIT_MS = 60 * 60 * 1000
@@ -22,6 +23,7 @@ export const clearSession = (): void => {
   localStorage.removeItem(REFRESH)
   localStorage.removeItem(USERNAME)
   localStorage.removeItem(LAST_ACTIVITY)
+  clearSiteCache()
 }
 
 /**

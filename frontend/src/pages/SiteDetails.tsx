@@ -20,8 +20,14 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
-import api from '../api/axios';
 import { updateSiteMetadata } from '../api/sites';
+import {
+  fetchProgress,
+  fetchSite,
+  getCachedProgress,
+  getCachedSite,
+  updateCachedSite,
+} from '../api/siteCache';
 import DashboardNav from '../components/DashboardNav';
 import SwipeToast from '../components/SwipeToast';
 
@@ -183,23 +189,92 @@ const TOAST_STYLE: Record<ToastKind, { fuse: string; icon: ReactNode }> = {
 };
 
 // ---------------------------------------------------------
+// LOADING PLACEHOLDERS
+// ---------------------------------------------------------
+
+const Shimmer = ({ className = '' }: { className?: string }) => (
+  <div className={`animate-pulse rounded-lg bg-white/[0.06] ${className}`} />
+);
+
+const SKELETON_CARD =
+  'rounded-[24px] sm:rounded-[28px] bg-[rgba(10,20,35,0.6)] border border-[#15803D]/20 p-5 sm:p-6';
+
+function SiteDetailsSkeleton() {
+  return (
+    <section className="relative w-full min-h-screen bg-[#080A19] text-slate-100 font-sans">
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <DashboardNav />
+        <main className="flex-1 flex flex-col px-5 sm:px-8 md:px-[82px] py-10 sm:py-14 max-w-[1500px] mx-auto w-full">
+          <Link
+            to="/construction-site/member"
+            className="inline-flex w-fit items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-5"
+          >
+            <ArrowLeft size={16} />
+            Back to My Sites
+          </Link>
+          <span className="text-[#4ADE80] text-xs font-semibold uppercase tracking-[0.2em] mb-3">
+            Construction Monitoring
+          </span>
+          <Shimmer className="h-12 w-80 max-w-full mb-3" />
+          <Shimmer className="h-4 w-64 max-w-full mb-9" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-10">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className={`${SKELETON_CARD} min-h-[150px] space-y-4`}>
+                <Shimmer className="h-3 w-24" />
+                <Shimmer className="h-7 w-32" />
+              </div>
+            ))}
+          </div>
+          <div className={`${SKELETON_CARD} mb-6 space-y-4`}>
+            <Shimmer className="h-5 w-40" />
+            <Shimmer className="h-12 w-56" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className={SKELETON_CARD}>
+              <Shimmer className="h-[190px] w-full" />
+            </div>
+            <div className={SKELETON_CARD}>
+              <Shimmer className="h-[190px] w-full" />
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------
 // COMPONENT
 // ---------------------------------------------------------
 
 function SiteDetails() {
   const { id } = useParams();
 
-  const [site, setSite] = useState<ConstructionSite | null>(null);
-  const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
-  const [isOwner, setIsOwner] = useState(false);
+  // Start from cached data (sites list / earlier visit) so the page paints
+  // immediately; fresh data is fetched in the background below.
+  const cachedSite = id
+    ? getCachedSite<ConstructionSite & { is_owner?: boolean }>(id)
+    : undefined;
+  const cachedLogs = id ? getCachedProgress<ProgressLog>(id) : undefined;
 
-  const [loading, setLoading] = useState(true);
+  const [site, setSiteState] = useState<ConstructionSite | null>(cachedSite ?? null);
+  const [progressLogs, setProgressLogs] = useState<ProgressLog[]>(cachedLogs ?? []);
+  const [isOwner, setIsOwner] = useState(Boolean(cachedSite?.is_owner));
+
+  const [loading, setLoading] = useState(!cachedSite);
+  const [logsLoading, setLogsLoading] = useState(!cachedLogs);
   const [error, setError] = useState('');
 
   const [isEditingArea, setIsEditingArea] = useState(false);
-  const [editedArea, setEditedArea] = useState<string | number>('');
-  const [editedStartDate, setEditedStartDate] = useState('');
-  const [editedEndDate, setEditedEndDate] = useState('');
+  const [editedArea, setEditedArea] = useState<string | number>(cachedSite?.area || '');
+  const [editedStartDate, setEditedStartDate] = useState(cachedSite?.start_date || '');
+  const [editedEndDate, setEditedEndDate] = useState(cachedSite?.end_date || '');
+
+  // Every local change to the site is mirrored into the cache.
+  const setSite = (next: ConstructionSite) => {
+    setSiteState(next);
+    if (id) updateCachedSite(id, next as unknown as Record<string, unknown>);
+  };
 
   // Toast notifications (replace the browser alert boxes)
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -221,39 +296,48 @@ function SiteDetails() {
   // ---------------------------------------------------------
 
   useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        // Single-site endpoint + progress logs, requested in parallel.
-        const [siteRes, logsRes] = await Promise.all([
-          api.get(`sites/${id}/`),
-          api.get(`sites/${id}/progress/`).catch((logErr) => {
-            console.error('Error fetching progress logs:', logErr);
-            return null;
-          }),
-        ]);
+    if (!id) return;
+    let active = true;
 
-        const selectedSite: ConstructionSite = siteRes.data;
-        setSite(selectedSite);
-        setEditedArea(selectedSite.area || '');
-        setEditedStartDate(selectedSite.start_date);
-        setEditedEndDate(selectedSite.end_date || '');
-        setIsOwner(Boolean((siteRes.data as any).is_owner));
-
-        const logsData = logsRes?.data?.progress_logs || logsRes?.data;
-        setProgressLogs(Array.isArray(logsData) ? logsData : []);
-      } catch (err: any) {
+    // Site details and progress logs load independently, so whichever
+    // arrives first is shown right away.
+    fetchSite<ConstructionSite & { is_owner?: boolean }>(id)
+      .then((fresh) => {
+        if (!active) return;
+        setSiteState(fresh);
+        setEditedArea(fresh.area || '');
+        setEditedStartDate(fresh.start_date);
+        setEditedEndDate(fresh.end_date || '');
+        setIsOwner(Boolean(fresh.is_owner));
+        setError('');
+      })
+      .catch((err: any) => {
+        if (!active) return;
         setError(
           err.response?.status === 404
             ? 'Site not found or you do not have access to it.'
             : err.response?.data?.detail ||
               'Unable to load site details. Please try again.'
         );
-      } finally {
-        setLoading(false);
-      }
-    };
+        // Access lost or site deleted: don't keep showing the cached copy.
+        if (err.response?.status === 404) setSiteState(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
-    fetchAllData();
+    fetchProgress<ProgressLog>(id)
+      .then((logs) => {
+        if (active) setProgressLogs(logs);
+      })
+      .catch((logErr) => console.error('Error fetching progress logs:', logErr))
+      .finally(() => {
+        if (active) setLogsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   // ---------------------------------------------------------
@@ -437,15 +521,13 @@ function SiteDetails() {
   // LOADING AND ERROR STATES
   // ---------------------------------------------------------
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#080A19] flex items-center justify-center">
-        <p className="text-slate-400">Loading site details...</p>
-      </div>
-    );
+  // No cached copy yet (e.g. opened by direct link): show the page layout
+  // with placeholders instead of a blank screen.
+  if (loading && !site) {
+    return <SiteDetailsSkeleton />;
   }
 
-  if (error || !site) {
+  if (!site) {
     return (
       <div className="min-h-screen bg-[#080A19] flex flex-col items-center justify-center p-6">
         <h2 className="text-2xl font-bold text-red-400 mb-3">
@@ -813,6 +895,12 @@ function SiteDetails() {
 
             </div>
 
+            {logsLoading && progressLogs.length === 0 ? (
+              <div className="space-y-3">
+                <Shimmer className="h-[54px] w-56" />
+                <Shimmer className="h-8 w-72 max-w-full" />
+              </div>
+            ) : (<>
             <div className="mb-2">
 
               <p className="text-white text-[36px] sm:text-[54px] font-normal leading-tight tracking-tight">
@@ -845,6 +933,7 @@ function SiteDetails() {
               )}
 
             </div>
+            </>)}
 
             {/* PREVIOUS RESULT COMPARISON */}
 
@@ -973,7 +1062,9 @@ function SiteDetails() {
               ) : (
                 <div className="h-[150px] sm:h-[190px] flex items-center justify-center border border-dashed border-white/10 rounded-xl">
                   <p className="text-white/35 text-sm">
-                    Your change activity graph will appear after monitoring.
+                    {logsLoading
+                      ? 'Loading change activity…'
+                      : 'Your change activity graph will appear after monitoring.'}
                   </p>
                 </div>
               )}
@@ -1123,7 +1214,9 @@ function SiteDetails() {
               ) : (
                 <div className="h-[150px] sm:h-[190px] flex items-center justify-center border border-dashed border-white/10 rounded-xl">
                   <p className="text-white/35 text-sm">
-                    Your change trend graph will appear after monitoring.
+                    {logsLoading
+                      ? 'Loading change trend…'
+                      : 'Your change trend graph will appear after monitoring.'}
                   </p>
                 </div>
               )}
@@ -1344,7 +1437,15 @@ function SiteDetails() {
 
               </table>
 
-              {progressLogs.length === 0 && (
+              {progressLogs.length === 0 && logsLoading && (
+                <div className="space-y-3 p-5">
+                  <Shimmer className="h-10 w-full" />
+                  <Shimmer className="h-10 w-full" />
+                  <Shimmer className="h-10 w-full" />
+                </div>
+              )}
+
+              {progressLogs.length === 0 && !logsLoading && (
                 <div className="flex flex-col items-center justify-center px-5 py-14 text-center">
 
                   <Activity className="mb-3 h-8 w-8 text-white/25" />

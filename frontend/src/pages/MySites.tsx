@@ -3,6 +3,7 @@ import { MapPin, Calendar, Trash2, Building2, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import api from '../api/axios';
+import { prefetchSite, seedSitesFromList } from '../api/siteCache';
 import SpotlightCard from '../components/SpotlightCard'; 
 import JellyRadio from '../components/JellyRadio';       
 import DashboardNav from '../components/DashboardNav'; 
@@ -52,6 +53,10 @@ function MySites() {
         // Populate the separate states based on the backend's categorization
         setSites(response.data.my_sites || []);
         setSharedSites(response.data.shared_sites || []);
+
+        // Let the site page paint instantly from the list data.
+        seedSitesFromList(response.data.my_sites || [], true);
+        seedSitesFromList(response.data.shared_sites || [], false);
       } catch (err: any) {
         setError(
           err.response?.data?.detail ||
@@ -138,6 +143,9 @@ function MySites() {
           </div>
           <Link
             to={`/construction-site/member/${site.construction_id}`}
+            onMouseEnter={() => prefetchSite(site.construction_id)}
+            onFocus={() => prefetchSite(site.construction_id)}
+            onTouchStart={() => prefetchSite(site.construction_id)}
             className="flex items-center justify-center gap-2 px-5 py-2 bg-slate-700/30 hover:bg-slate-600/40 text-slate-200 border border-slate-600/50 rounded-lg text-sm font-semibold transition-all shrink-0 w-full sm:w-auto"
           >
             <Eye size={16} />

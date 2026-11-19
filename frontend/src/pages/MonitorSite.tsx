@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import api from '../api/axios';
+import { fetchSite, getCachedSite } from '../api/siteCache';
 import DashboardNav from '../components/DashboardNav';
 
 interface ConstructionSite {
@@ -111,41 +112,48 @@ function formatDate(value?: string | null) {
 
 export default function MonitorSite() {
   const { id } = useParams<{ id: string }>();
-  console.log('Monitoring site ID:', id);
-  const [site, setSite] = useState<ConstructionSite | null>(null);
-  const [loadingInitial, setLoadingInitial] = useState(true);
+  const todayStr = getLocalDate();
+
+  // Paint straight away from the cached site (set by My Sites / Site Details),
+  // then refresh it in the background.
+  const cachedSite = id ? getCachedSite<ConstructionSite>(id) : undefined;
+
+  const [site, setSite] = useState<ConstructionSite | null>(cachedSite ?? null);
+  const [loadingInitial, setLoadingInitial] = useState(!cachedSite);
 
   const [mode, setMode] = useState<AnalysisMode>('auto');
-  const [earlierDate, setEarlierDate] = useState('');
-  const [laterDate, setLaterDate] = useState('');
+  const [earlierDate, setEarlierDate] = useState(cachedSite?.start_date ?? '');
+  const [laterDate, setLaterDate] = useState(cachedSite ? todayStr : '');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<MonitoringResponse | null>(null);
 
-  const todayStr = getLocalDate();
-
   // Load site details.
   useEffect(() => {
     let active = true;
 
-    const fetchSite = async () => {
+    const loadSite = async () => {
       try {
-        const response = await api.get(`sites/${id}/`);
-        const found: ConstructionSite | undefined = response.data;
+        const found = await fetchSite<ConstructionSite>(id!);
 
         if (!active) return;
 
         if (found) {
           setSite(found);
-          setEarlierDate(found.start_date);
-          setLaterDate(todayStr);
         } else {
           setError('Site not found or you do not have access to it.');
         }
-      } catch {
+      } catch (err: any) {
         if (active) {
-          setError('Unable to load site details. Please try again.');
+          if (err.response?.status === 404) {
+            setError('Site not found or you do not have access to it.');
+            setSite(null);
+          } else if (!cachedSite) {
+            // With a cached copy the form still works, so only a missing
+            // site is worth an error here.
+            setError('Unable to load site details. Please try again.');
+          }
         }
       } finally {
         if (active) {
@@ -155,7 +163,7 @@ export default function MonitorSite() {
     };
 
     if (id) {
-      fetchSite();
+      loadSite();
     } else {
       setError('Invalid construction site ID.');
       setLoadingInitial(false);
@@ -247,11 +255,33 @@ export default function MonitorSite() {
     }
   };
 
-  if (loadingInitial) {
+  // No cached copy (opened by direct link): show the page layout right away
+  // with a placeholder card instead of a blank spinner screen.
+  if (loadingInitial && !site) {
     return (
-      <div className="min-h-screen bg-[#080A19] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-      </div>
+      <section className="relative w-full min-h-screen bg-[#080A19] text-slate-100 font-sans">
+        <div className="relative z-10 flex flex-col min-h-screen">
+          <DashboardNav />
+          <main className="flex-1 flex flex-col px-5 sm:px-8 md:px-[82px] py-16 max-w-5xl mx-auto w-full">
+            <div className="mb-10">
+              <Link
+                to={`/construction-site/member/${id}`}
+                className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-4"
+              >
+                <ArrowLeft size={16} />
+                Back to Site Details
+              </Link>
+              <h1 className="text-white text-[32px] sm:text-[48px] font-normal leading-tight">
+                Monitor Progress
+              </h1>
+              <div className="mt-3 h-5 w-80 max-w-full animate-pulse rounded-lg bg-white/[0.06]" />
+            </div>
+            <div className="bg-slate-900/50 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl flex items-center justify-center min-h-[320px]">
+              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+            </div>
+          </main>
+        </div>
+      </section>
     );
   }
 
